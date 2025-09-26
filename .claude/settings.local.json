@@ -9,7 +9,11 @@
       "Bash(npx tsc:*)",
       "Bash(npm run build:*)",
       "Bash(npm ls:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(firebase apphosting:secrets:set:*)",
+      "Bash(firebase apphosting:secrets:grantaccess:*)",
+      "Bash(firebase apphosting:backends:list:*)",
+      "Bash(firebase apphosting:secrets:describe:*)"
     ],
     "deny": [],
     "ask": []

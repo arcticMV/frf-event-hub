@@ -75,3 +75,4 @@ firebase-adminsdk*.json
 *.bak
 *.tmp
 *~
+temp-private-key.txt
