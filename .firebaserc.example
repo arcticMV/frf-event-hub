@@ -1,0 +1,23 @@
+{
+  "projects": {
+    "default": "your-project-id"
+  },
+  "targets": {
+    "your-project-id": {
+      "hosting": {
+        "frf-event-hub": [
+          "your-project-id"
+        ]
+      }
+    }
+  },
+  "dataconnectEmulatorConfig": {
+    "postgres": {
+      "localConnectionString": "postgresql://localhost:5432?sslmode=disable"
+    }
+  },
+  "etags": {},
+  "hosting": {
+    "region": "europe-west4"
+  }
+}

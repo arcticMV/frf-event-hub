@@ -1,0 +1,57 @@
+# Application Configuration
+app:
+  name: FRF Event Hub
+  version: 1.0.0
+  environment: ${NODE_ENV}
+
+# Firebase Configuration
+firebase:
+  projectId: ${FIREBASE_PROJECT_ID}
+  storageBucket: ${FIREBASE_STORAGE_BUCKET}
+  messagingSenderId: ${FIREBASE_MESSAGING_SENDER_ID}
+  appId: ${FIREBASE_APP_ID}
+  measurementId: ${FIREBASE_MEASUREMENT_ID}
+
+# GCP Services Configuration
+gcp:
+  region: europe-west4
+  services:
+    firestore:
+      enabled: true
+      collections:
+        events: events
+        users: users
+        registrations: registrations
+    storage:
+      enabled: true
+      buckets:
+        images: event-images
+        documents: event-documents
+    functions:
+      enabled: true
+      region: europe-west4
+    authentication:
+      enabled: true
+      providers:
+        - email
+        - google
+
+# Feature Flags
+features:
+  registration:
+    enabled: true
+    requireApproval: false
+    maxAttendees: 500
+  notifications:
+    email:
+      enabled: true
+    push:
+      enabled: false
+  analytics:
+    enabled: true
+
+# API Configuration
+api:
+  baseUrl: ${API_BASE_URL}
+  timeout: 30000
+  retries: 3

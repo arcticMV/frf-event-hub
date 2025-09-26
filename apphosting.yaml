@@ -1,0 +1,44 @@
+# Firebase App Hosting Configuration
+runtime: nodejs20
+
+# Environment configuration
+env:
+  - variable: NODE_ENV
+    value: production
+  - variable: FIREBASE_PROJECT_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: FIREBASE_CLIENT_EMAIL
+    availability:
+      - RUNTIME
+    secret: firebase-client-email
+  - variable: FIREBASE_PRIVATE_KEY
+    availability:
+      - RUNTIME
+    secret: firebase-private-key
+
+# CPU and memory configuration
+cpu: 1
+memoryMiB: 512
+minInstances: 1
+maxInstances: 10
+concurrency: 100
+
+# Build configuration
+buildCommand: npm run build
+
+# Service configuration
+service:
+  name: frf-event-hub
+  region: europe-west4
+
+# VPC connector (optional, for private IP access)
+# vpcConnector:
+#   name: projects/PROJECT_ID/locations/REGION/connectors/CONNECTOR_NAME
+
+# Additional services
+services:
+  - firestore
+  - storage
+  - authentication

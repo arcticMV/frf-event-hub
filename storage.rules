@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null &&
+        request.auth.token.admin == true;
+    }
+
+    // Helper function to validate image file
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') &&
+        request.resource.size < 5 * 1024 * 1024; // Max 5MB
+    }
+
+    // Helper function to validate document file
+    function isValidDocument() {
+      return (request.resource.contentType.matches('application/pdf') ||
+              request.resource.contentType.matches('application/msword') ||
+              request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.*')) &&
+        request.resource.size < 10 * 1024 * 1024; // Max 10MB
+    }
+
+    // Event images storage rules
+    match /event-images/{eventId}/{imageId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isValidImage();
+      allow delete: if isAdmin();
+    }
+
+    // Event documents storage rules
+    match /event-documents/{eventId}/{documentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidDocument();
+      allow delete: if isAdmin();
+    }
+
+    // User profile images storage rules
+    match /user-profiles/{userId}/{imageId} {
+      allow read: if true;
+      allow write: if isAuthenticated() &&
+        request.auth.uid == userId && isValidImage();
+      allow delete: if isAuthenticated() &&
+        (request.auth.uid == userId || isAdmin());
+    }
+
+    // Temporary uploads (for processing)
+    match /temp/{userId}/{fileId} {
+      allow read, write: if isAuthenticated() &&
+        request.auth.uid == userId;
+      allow delete: if isAuthenticated() &&
+        request.auth.uid == userId;
+    }
+  }
+}
