@@ -6,6 +6,7 @@ env:
   - variable: NODE_ENV
     value: production
   - variable: FIREBASE_PROJECT_ID
+    value: ${PROJECT_ID}
     availability:
       - BUILD
       - RUNTIME
