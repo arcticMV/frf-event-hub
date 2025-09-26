@@ -18,6 +18,35 @@ env:
     availability:
       - RUNTIME
     secret: firebase-private-key
+  # Next.js public environment variables for client-side Firebase
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyA7lGhZhKtQo8xsTyKhTIc-3kENt57xI7c
+    availability:
+      - BUILD
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: frf-event-hub.firebaseapp.com
+    availability:
+      - BUILD
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: frf-event-hub
+    availability:
+      - BUILD
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: frf-event-hub.firebasestorage.app
+    availability:
+      - BUILD
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "160118131715"
+    availability:
+      - BUILD
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:160118131715:web:bcecacad8e862acf7ad236
+    availability:
+      - BUILD
+  - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    value: G-YDNY57JXG8
+    availability:
+      - BUILD
 
 # CPU and memory configuration
 cpu: 1
