@@ -20,6 +20,10 @@ import {
   Stack,
   Alert,
   Tooltip,
+  Skeleton,
+  Fade,
+  Grow,
+  Fab,
 } from '@mui/material';
 import {
   DataGrid,
@@ -34,6 +38,7 @@ import {
   Close as RejectIcon,
   Refresh as RefreshIcon,
   Visibility as ViewIcon,
+  Add as AddIcon,
 } from '@mui/icons-material';
 import { db } from '@/lib/firebase/client';
 import {
@@ -343,6 +348,7 @@ export default function StagingEventsPage() {
   ];
 
   return (
+    <Fade in timeout={300}>
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
@@ -364,34 +370,55 @@ export default function StagingEventsPage() {
 
       {/* Statistics Bar */}
       <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h6">{events.length}</Typography>
-          <Typography variant="body2" color="text.secondary">Total Events</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h6" color="warning.main">
-            {events.filter(e => e.reviewStatus === 'pending').length}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">Pending Review</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h6" color="success.main">
-            {events.filter(e => e.reviewStatus === 'approved').length}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">Approved</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h6" color="error.main">
-            {events.filter(e => e.reviewStatus === 'rejected').length}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">Rejected</Typography>
-        </Paper>
-        <Paper sx={{ p: 2, flex: 1 }}>
-          <Typography variant="h6" color="error.main">
-            {events.filter(e => e.event?.severity === 'critical').length}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">Critical Events</Typography>
-        </Paper>
+        {loading ? (
+          [...Array(5)].map((_, i) => (
+            <Paper key={i} sx={{ p: 2, flex: 1 }}>
+              <Skeleton variant="text" width="60%" height={32} />
+              <Skeleton variant="text" width="80%" />
+            </Paper>
+          ))
+        ) : (
+          <>
+            <Grow in timeout={400}>
+              <Paper sx={{ p: 2, flex: 1, transition: 'all 0.3s', cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
+                <Typography variant="h6">{events.length}</Typography>
+                <Typography variant="body2" color="text.secondary">Total Events</Typography>
+              </Paper>
+            </Grow>
+            <Grow in timeout={500}>
+              <Paper sx={{ p: 2, flex: 1, transition: 'all 0.3s', cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
+                <Typography variant="h6" color="warning.main">
+                  {events.filter(e => e.reviewStatus === 'pending').length}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">Pending Review</Typography>
+              </Paper>
+            </Grow>
+            <Grow in timeout={600}>
+              <Paper sx={{ p: 2, flex: 1, transition: 'all 0.3s', cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
+                <Typography variant="h6" color="success.main">
+                  {events.filter(e => e.reviewStatus === 'approved').length}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">Approved</Typography>
+              </Paper>
+            </Grow>
+            <Grow in timeout={700}>
+              <Paper sx={{ p: 2, flex: 1, transition: 'all 0.3s', cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
+                <Typography variant="h6" color="error.main">
+                  {events.filter(e => e.reviewStatus === 'rejected').length}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">Rejected</Typography>
+              </Paper>
+            </Grow>
+            <Grow in timeout={800}>
+              <Paper sx={{ p: 2, flex: 1, transition: 'all 0.3s', cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
+                <Typography variant="h6" color="error.main">
+                  {events.filter(e => e.event?.severity === 'critical').length}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">Critical Events</Typography>
+              </Paper>
+            </Grow>
+          </>
+        )}
       </Stack>
 
       {/* Data Table */}
@@ -574,6 +601,29 @@ export default function StagingEventsPage() {
           )}
         </DialogActions>
       </Dialog>
+
+      {/* Floating Action Button */}
+      <Fab
+        color="primary"
+        aria-label="add"
+        sx={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          background: 'linear-gradient(45deg, #6366F1 30%, #8B5CF6 90%)',
+          boxShadow: '0 3px 5px 2px rgba(99, 102, 241, .3)',
+          '&:hover': {
+            background: 'linear-gradient(45deg, #4F46E5 30%, #7C3AED 90%)',
+          },
+        }}
+        onClick={() => {
+          // Add new event functionality
+          toast.success('Add new event functionality coming soon!');
+        }}
+      >
+        <AddIcon />
+      </Fab>
     </Box>
+    </Fade>
   );
 }

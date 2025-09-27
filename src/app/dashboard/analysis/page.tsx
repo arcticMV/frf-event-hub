@@ -16,6 +16,9 @@ import {
   Alert,
   Card,
   CardContent,
+  Skeleton,
+  Fade,
+  Grow,
   Divider,
   LinearProgress,
   IconButton,
@@ -397,6 +400,7 @@ export default function AnalysisQueuePage() {
   const avgRiskScore = events.reduce((acc, e) => acc + (e.aiAnalysis?.severity || 0), 0) / (events.length || 1);
 
   return (
+    <Fade in timeout={300}>
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
@@ -736,5 +740,6 @@ export default function AnalysisQueuePage() {
         </DialogActions>
       </Dialog>
     </Box>
+    </Fade>
   );
 }

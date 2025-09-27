@@ -13,6 +13,10 @@ import {
   Stack,
   Divider,
   Button,
+  Skeleton,
+  Fade,
+  Grow,
+  Zoom,
 } from '@mui/material';
 import {
   Inbox as InboxIcon,
@@ -312,6 +316,7 @@ export default function DashboardPage() {
   }
 
   return (
+    <Fade in timeout={300}>
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
@@ -330,16 +335,24 @@ export default function DashboardPage() {
       {/* Pipeline Overview Cards */}
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 4 }}>
         {/* Staging Events Card */}
-        <Box sx={{ flex: '1 1 calc(33.333% - 16px)', minWidth: 300 }}>
-          <Card
-            elevation={0}
-            sx={{
-              border: '2px solid',
-              borderColor: 'warning.main',
-              position: 'relative',
-              overflow: 'visible',
-            }}
-          >
+        <Grow in timeout={400}>
+          <Box sx={{ flex: '1 1 calc(33.333% - 16px)', minWidth: 300 }}>
+            <Card
+              elevation={0}
+              sx={{
+                border: '2px solid',
+                borderColor: 'warning.main',
+                position: 'relative',
+                overflow: 'visible',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                cursor: 'pointer',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 12px 20px rgba(0, 0, 0, 0.1)',
+                  borderColor: 'warning.dark',
+                },
+              }}
+            >
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <InboxIcon sx={{ mr: 1, color: 'warning.main' }} />
@@ -395,20 +408,29 @@ export default function DashboardPage() {
                 Manage Staging
               </Button>
             </CardContent>
-          </Card>
-        </Box>
+            </Card>
+          </Box>
+        </Grow>
 
         {/* Analysis Queue Card */}
-        <Box sx={{ flex: '1 1 calc(33.333% - 16px)', minWidth: 300 }}>
-          <Card
-            elevation={0}
-            sx={{
-              border: '2px solid',
-              borderColor: 'info.main',
-              position: 'relative',
-              overflow: 'visible',
-            }}
-          >
+        <Grow in timeout={500}>
+          <Box sx={{ flex: '1 1 calc(33.333% - 16px)', minWidth: 300 }}>
+            <Card
+              elevation={0}
+              sx={{
+                border: '2px solid',
+                borderColor: 'info.main',
+                position: 'relative',
+                overflow: 'visible',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                cursor: 'pointer',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 12px 20px rgba(0, 0, 0, 0.1)',
+                  borderColor: 'info.dark',
+                },
+              }}
+            >
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <AnalyticsIcon sx={{ mr: 1, color: 'info.main' }} />
@@ -466,20 +488,29 @@ export default function DashboardPage() {
                 Manage Analysis
               </Button>
             </CardContent>
-          </Card>
-        </Box>
+            </Card>
+          </Box>
+        </Grow>
 
         {/* Verified Events Card */}
-        <Box sx={{ flex: '1 1 calc(33.333% - 16px)', minWidth: 300 }}>
-          <Card
-            elevation={0}
-            sx={{
-              border: '2px solid',
-              borderColor: 'success.main',
-              position: 'relative',
-              overflow: 'visible',
-            }}
-          >
+        <Grow in timeout={600}>
+          <Box sx={{ flex: '1 1 calc(33.333% - 16px)', minWidth: 300 }}>
+            <Card
+              elevation={0}
+              sx={{
+                border: '2px solid',
+                borderColor: 'success.main',
+                position: 'relative',
+                overflow: 'visible',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                cursor: 'pointer',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 12px 20px rgba(0, 0, 0, 0.1)',
+                  borderColor: 'success.dark',
+                },
+              }}
+            >
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <VerifiedIcon sx={{ mr: 1, color: 'success.main' }} />
@@ -531,8 +562,9 @@ export default function DashboardPage() {
                 View Verified
               </Button>
             </CardContent>
-          </Card>
-        </Box>
+            </Card>
+          </Box>
+        </Grow>
       </Box>
 
       {/* Recent Events Section */}
@@ -646,5 +678,6 @@ export default function DashboardPage() {
         </Box>
       </Box>
     </Box>
+    </Fade>
   );
 }

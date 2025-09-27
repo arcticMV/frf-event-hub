@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { db } from '@/lib/firebase/client';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import {
   Box,
   Drawer,
@@ -25,6 +27,7 @@ import {
   useTheme,
   useMediaQuery,
   Paper,
+  Button,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -44,20 +47,23 @@ import {
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 
-const drawerWidth = 280;
+const drawerWidth = 260;
 
 const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
   open?: boolean;
 }>(({ theme, open }) => ({
   flexGrow: 1,
-  padding: theme.spacing(2),
+  padding: theme.spacing(3),
+  paddingTop: theme.spacing(2),
   transition: theme.transitions.create('margin', {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
   }),
   marginLeft: 0,
+  backgroundColor: '#f8f9fa',
+  minHeight: '100vh',
   [theme.breakpoints.down('md')]: {
-    padding: theme.spacing(1),
+    padding: theme.spacing(2),
   },
   ...(open && {
     transition: theme.transitions.create('margin', {
@@ -82,6 +88,10 @@ const DrawerHeader = styled('div')(({ theme }) => ({
 const StyledAppBar = styled(AppBar, {
   shouldForwardProp: (prop) => prop !== 'open',
 })<{ open?: boolean }>(({ theme, open }) => ({
+  backgroundColor: '#ffffff',
+  color: theme.palette.text.primary,
+  boxShadow: 'none',
+  borderBottom: '1px solid rgba(0,0,0,0.08)',
   transition: theme.transitions.create(['margin', 'width'], {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
@@ -103,17 +113,36 @@ const menuItems = [
   { text: 'Staging Events', icon: <InboxIcon />, path: '/dashboard/staging' },
   { text: 'Analysis Queue', icon: <AnalyticsIcon />, path: '/dashboard/analysis' },
   { text: 'Verified Events', icon: <VerifiedIcon />, path: '/dashboard/verified' },
-  { text: 'Human Review', icon: <PsychologyIcon />, path: '/dashboard/review' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/dashboard/settings' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [pendingEventsCount, setPendingEventsCount] = useState(0);
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Subscribe to pending staging events count
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'staging_events'),
+      where('reviewStatus', '==', 'pending')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPendingEventsCount(snapshot.size);
+    }, (error) => {
+      console.error('Error fetching pending events count:', error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const handleDrawerToggle = () => {
     setOpen(!open);
@@ -144,8 +173,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </DrawerHeader>
       <Divider />
 
-      <List sx={{ px: 2, py: 2 }}>
-        {menuItems.map((item) => {
+      <List sx={{ px: 1.5, py: 1 }}>
+        {menuItems.slice(0, 4).map((item) => {
           const isActive = pathname === item.path;
           return (
             <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
@@ -154,7 +183,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 href={item.path}
                 selected={isActive}
                 sx={{
-                  borderRadius: 2,
+                  borderRadius: 1.5,
+                  py: 1.25,
                   '&.Mui-selected': {
                     backgroundColor: 'primary.main',
                     color: 'white',
@@ -165,13 +195,64 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       color: 'white',
                     },
                   },
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                  },
                 }}
               >
-                <ListItemIcon sx={{ color: isActive ? 'white' : 'text.secondary' }}>
+                <ListItemIcon sx={{ color: isActive ? 'white' : 'text.secondary', minWidth: 40 }}>
                   {item.icon}
                 </ListItemIcon>
-                <ListItemText primary={item.text} />
-                {isActive && <ChevronRightIcon />}
+                <ListItemText
+                  primary={item.text}
+                  primaryTypographyProps={{
+                    fontSize: '0.95rem',
+                    fontWeight: isActive ? 600 : 400
+                  }}
+                />
+                {isActive && <ChevronRightIcon fontSize="small" />}
+              </ListItemButton>
+            </ListItem>
+          );
+        })}
+      </List>
+
+      <Divider sx={{ mx: 2, my: 1 }} />
+
+      <List sx={{ px: 1.5, py: 1 }}>
+        {menuItems.slice(4).map((item) => {
+          const isActive = pathname === item.path;
+          return (
+            <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
+              <ListItemButton
+                component={Link}
+                href={item.path}
+                selected={isActive}
+                sx={{
+                  borderRadius: 1.5,
+                  py: 1,
+                  '&.Mui-selected': {
+                    backgroundColor: 'grey.200',
+                    '&:hover': {
+                      backgroundColor: 'grey.300',
+                    },
+                  },
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                  },
+                }}
+              >
+                <ListItemIcon sx={{ color: isActive ? 'primary.main' : 'text.secondary', minWidth: 40 }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.text}
+                  primaryTypographyProps={{
+                    fontSize: '0.9rem',
+                    fontWeight: isActive ? 500 : 400,
+                    color: isActive ? 'primary.main' : 'text.primary'
+                  }}
+                />
               </ListItemButton>
             </ListItem>
           );
@@ -180,14 +261,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <Box sx={{ flexGrow: 1 }} />
 
-      <Divider />
-      <Box sx={{ p: 2 }}>
+      <Divider sx={{ mt: 1 }} />
+      <Box sx={{ p: 1.5 }}>
         <Paper
           elevation={0}
           sx={{
-            p: 2,
-            bgcolor: 'grey.100',
+            p: 1.5,
+            bgcolor: 'grey.50',
             borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'grey.200',
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -237,8 +320,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {menuItems.find(item => item.path === pathname)?.text || 'Dashboard'}
           </Typography>
 
-          <IconButton color="inherit" sx={{ mr: 1 }}>
-            <Badge badgeContent={4} color="error">
+          <IconButton
+            color="inherit"
+            sx={{ mr: 1 }}
+            onClick={() => router.push('/dashboard/staging')}
+            title={`${pendingEventsCount} pending staging events`}
+          >
+            <Badge badgeContent={pendingEventsCount} color="error">
               <NotificationsIcon />
             </Badge>
           </IconButton>
@@ -297,7 +385,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <DrawerHeader />
         <Box sx={{
           minHeight: 'calc(100vh - 88px)',
-          maxWidth: '1600px',
+          maxWidth: '1400px',
           margin: '0 auto',
           width: '100%',
         }}>
@@ -307,5 +395,3 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </Box>
   );
 }
-
-import { Button } from '@mui/material';
