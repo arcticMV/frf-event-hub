@@ -31,6 +31,70 @@
         { "fieldPath": "eventId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "staging_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "reviewStatus", "order": "ASCENDING" },
+        { "fieldPath": "collectedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "staging_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "event.severity", "order": "ASCENDING" },
+        { "fieldPath": "collectedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "staging_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "event.category", "order": "ASCENDING" },
+        { "fieldPath": "collectedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "analysis_queue",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "verificationStatus", "order": "ASCENDING" },
+        { "fieldPath": "analyzedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "analysis_queue",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "event.severity", "order": "ASCENDING" },
+        { "fieldPath": "analyzedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "verified_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "event.severity", "order": "ASCENDING" },
+        { "fieldPath": "verifiedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "verified_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "event.category", "order": "ASCENDING" },
+        { "fieldPath": "verifiedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "verified_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "event.location.country.eng", "order": "ASCENDING" },
+        { "fieldPath": "verifiedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

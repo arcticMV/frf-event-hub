@@ -39,6 +39,8 @@ import {
   ChevronRight as ChevronRightIcon,
   Security as SecurityIcon,
   Psychology as PsychologyIcon,
+  Inbox as InboxIcon,
+  CheckCircle as VerifiedIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 
@@ -48,12 +50,15 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
   open?: boolean;
 }>(({ theme, open }) => ({
   flexGrow: 1,
-  padding: theme.spacing(3),
+  padding: theme.spacing(2),
   transition: theme.transitions.create('margin', {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.leavingScreen,
   }),
   marginLeft: 0,
+  [theme.breakpoints.down('md')]: {
+    padding: theme.spacing(1),
+  },
   ...(open && {
     transition: theme.transitions.create('margin', {
       easing: theme.transitions.easing.easeOut,
@@ -61,6 +66,7 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
     }),
     [theme.breakpoints.up('md')]: {
       marginLeft: drawerWidth,
+      width: `calc(100% - ${drawerWidth}px)`,
     },
   }),
 }));
@@ -94,10 +100,10 @@ const StyledAppBar = styled(AppBar, {
 
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-  { text: 'Risk Assessments', icon: <AssessmentIcon />, path: '/dashboard/assessments' },
-  { text: 'Data Collection', icon: <DataUsageIcon />, path: '/dashboard/collection' },
+  { text: 'Staging Events', icon: <InboxIcon />, path: '/dashboard/staging' },
+  { text: 'Analysis Queue', icon: <AnalyticsIcon />, path: '/dashboard/analysis' },
+  { text: 'Verified Events', icon: <VerifiedIcon />, path: '/dashboard/verified' },
   { text: 'Human Review', icon: <PsychologyIcon />, path: '/dashboard/review' },
-  { text: 'Analytics', icon: <AnalyticsIcon />, path: '/dashboard/analytics' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/dashboard/settings' },
 ];
 
@@ -289,7 +295,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <Main open={open}>
         <DrawerHeader />
-        <Box sx={{ minHeight: 'calc(100vh - 88px)' }}>
+        <Box sx={{
+          minHeight: 'calc(100vh - 88px)',
+          maxWidth: '1600px',
+          margin: '0 auto',
+          width: '100%',
+        }}>
           {children}
         </Box>
       </Main>

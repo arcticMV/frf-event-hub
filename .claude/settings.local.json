@@ -13,7 +13,11 @@
       "Bash(firebase apphosting:secrets:set:*)",
       "Bash(firebase apphosting:secrets:grantaccess:*)",
       "Bash(firebase apphosting:backends:list:*)",
-      "Bash(firebase apphosting:secrets:describe:*)"
+      "Bash(firebase apphosting:secrets:describe:*)",
+      "Bash(firebase firestore:get:*)",
+      "Bash(firebase firestore:databases:*)",
+      "Bash(node:*)",
+      "Bash(firebase deploy:*)"
     ],
     "deny": [],
     "ask": []

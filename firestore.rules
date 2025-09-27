@@ -20,7 +20,49 @@ service cloud.firestore {
         request.auth.uid == userId;
     }
 
-    // Events collection rules
+
+    // Staging Events collection rules
+    // Allows authenticated users to read, update, and manage staging events
+    match /staging_events/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+        // Ensure critical fields are preserved or properly updated
+        (request.resource.data.eventId == resource.data.eventId) &&
+        // Track who reviewed the event
+        (request.resource.data.reviewStatus != resource.data.reviewStatus ?
+          request.resource.data.reviewedBy == request.auth.token.email : true);
+      allow delete: if isAuthenticated() &&
+        (isAdmin() || resource.data.reviewStatus == 'rejected');
+    }
+
+    // Analysis Queue collection rules
+    // Allows authenticated users to manage events in analysis
+    match /analysis_queue/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+        // Ensure event ID is preserved
+        (request.resource.data.eventId == resource.data.eventId) &&
+        // Track who verified the event
+        (request.resource.data.verificationStatus != resource.data.verificationStatus ?
+          request.resource.data.verifiedBy == request.auth.token.email : true);
+      allow delete: if isAuthenticated() &&
+        (isAdmin() || resource.data.verificationStatus == 'failed');
+    }
+
+    // Verified Events collection rules
+    // More restricted - only allow creation through the pipeline, updates by admin
+    match /verified_events/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        // Must come from analysis queue with verified status
+        request.resource.data.keys().hasAll(['event', 'analysis', 'verifiedAt']);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Events collection rules (existing)
     match /events/{eventId} {
       allow read: if true;
       allow create: if isAuthenticated();
@@ -57,6 +99,21 @@ service cloud.firestore {
       allow update: if isAuthenticated() &&
         (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
+    }
+
+    // System collections - for backend functions only
+    // These might be created by cloud functions for system operations
+    match /system/{document=**} {
+      allow read: if isAdmin();
+      allow write: if false; // Only backend functions can write
+    }
+
+    // Audit logs collection - write-only for authenticated users, read for admin
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
