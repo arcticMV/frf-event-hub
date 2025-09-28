@@ -13,7 +13,6 @@ import {
   Stack,
   Divider,
   Button,
-  Skeleton,
   Fade,
   Grow,
   Zoom,
@@ -28,6 +27,9 @@ import {
   TrendingUp as TrendingUpIcon,
   Schedule as ScheduleIcon,
   Assessment as AssessmentIcon,
+  Add as AddIcon,
+  Search as SearchIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
 import { db } from '@/lib/firebase/client';
 import {
@@ -38,9 +40,17 @@ import {
   orderBy,
   limit,
   Timestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import GlassCard from '@/components/GlassCard';
+import LoadingSkeleton from '@/components/LoadingSkeleton';
+import EmptyState from '@/components/EmptyState';
+import { AnimatedLineChart, AnimatedAreaChart, AnimatedBarChart, AnimatedPieChart } from '@/components/Charts';
+import QuickActions from '@/components/QuickActions';
+import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
+import { motion } from 'framer-motion';
 
 interface CollectionStats {
   staging: {
@@ -178,8 +188,8 @@ export default function DashboardPage() {
         else if (data.verificationStatus === 'failed') analysisStats.failed++;
 
         // Calculate average risk score
-        if (data.analysis?.riskScore) {
-          totalRiskScore += data.analysis.riskScore;
+        if (data.aiAnalysis?.severity) {
+          totalRiskScore += data.aiAnalysis.severity;
         }
       });
 
@@ -259,6 +269,8 @@ export default function DashboardPage() {
         analysis: analysisStats,
         verified: verifiedStats,
       });
+
+      toast.success('Dashboard refreshed successfully');
     } catch (error) {
       console.error('Error fetching stats:', error);
       toast.error('Failed to fetch statistics');
@@ -267,8 +279,39 @@ export default function DashboardPage() {
     }
   };
 
+  // Set up real-time listeners
   useEffect(() => {
     fetchStats();
+
+    // Real-time listener for staging events
+    const stagingUnsubscribe = onSnapshot(
+      collection(db, 'staging_events'),
+      () => {
+        fetchStats();
+      }
+    );
+
+    // Real-time listener for analysis queue
+    const analysisUnsubscribe = onSnapshot(
+      collection(db, 'analysis_queue'),
+      () => {
+        fetchStats();
+      }
+    );
+
+    // Real-time listener for verified events
+    const verifiedUnsubscribe = onSnapshot(
+      collection(db, 'verified_events'),
+      () => {
+        fetchStats();
+      }
+    );
+
+    return () => {
+      stagingUnsubscribe();
+      analysisUnsubscribe();
+      verifiedUnsubscribe();
+    };
   }, []);
 
   const formatDate = (timestamp: any) => {
@@ -297,264 +340,252 @@ export default function DashboardPage() {
     return 'N/A';
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'error';
-      case 'high': return 'warning';
-      case 'medium': return 'info';
-      case 'low': return 'success';
-      default: return 'default';
-    }
-  };
+  // Prepare chart data
+  const severityChartData = [
+    { name: 'Critical', value: stats.staging.critical + stats.verified.critical },
+    { name: 'High', value: stats.staging.high + stats.verified.high },
+    { name: 'Medium', value: stats.staging.medium + stats.verified.medium },
+    { name: 'Low', value: stats.staging.low + stats.verified.low },
+  ];
+
+  const statusChartData = [
+    { name: 'Pending', value: stats.staging.pending },
+    { name: 'Approved', value: stats.staging.approved },
+    { name: 'Rejected', value: stats.staging.rejected },
+  ];
+
+  const categoryChartData = Object.entries(stats.verified.byCategory).map(([name, value]) => ({
+    name,
+    value,
+  }));
+
+  // Mock time series data for demonstration - in production, this would come from historical data
+  const timeSeriesData = [
+    { name: 'Mon', value: 45 },
+    { name: 'Tue', value: 52 },
+    { name: 'Wed', value: 38 },
+    { name: 'Thu', value: 65 },
+    { name: 'Fri', value: 72 },
+    { name: 'Sat', value: 58 },
+    { name: 'Sun', value: 43 },
+  ];
+
+  const quickActionHandlers = [
+    {
+      icon: <AddIcon />,
+      name: 'Add Event',
+      onClick: () => router.push('/dashboard/staging'),
+      color: 'primary' as const,
+    },
+    {
+      icon: <RefreshIcon />,
+      name: 'Refresh',
+      onClick: () => fetchStats(),
+      color: 'info' as const,
+    },
+    {
+      icon: <SearchIcon />,
+      name: 'Search',
+      onClick: () => toast('Search feature coming soon!'),
+      color: 'secondary' as const,
+    },
+    {
+      icon: <DownloadIcon />,
+      name: 'Export',
+      onClick: () => toast('Export feature coming soon!'),
+      color: 'success' as const,
+    },
+  ];
 
   if (loading) {
+    return <LoadingSkeleton variant="dashboard" />;
+  }
+
+  const isEmpty = stats.staging.total === 0 && stats.analysis.total === 0 && stats.verified.total === 0;
+
+  if (isEmpty) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
-        <CircularProgress />
-      </Box>
+      <EmptyState
+        title="No Events Yet"
+        description="Your event pipeline is empty. Start by adding events to the staging area."
+        icon={<InboxIcon />}
+        actionLabel="Go to Staging"
+        onAction={() => router.push('/dashboard/staging')}
+        height="60vh"
+      />
     );
   }
 
   return (
-    <Fade in timeout={300}>
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h4" gutterBottom fontWeight="bold">
-            Event Processing Pipeline
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Real-time monitoring of event collection, analysis, and verification
-          </Typography>
+      {/* Header Section */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h4" gutterBottom fontWeight="bold">
+              Event Intelligence Dashboard
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Real-time monitoring of event collection, analysis, and verification
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<RefreshIcon />}
+            onClick={fetchStats}
+            sx={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+              },
+            }}
+          >
+            Refresh
+          </Button>
         </Box>
-        <IconButton onClick={fetchStats} size="large">
-          <RefreshIcon />
-        </IconButton>
-      </Box>
+      </motion.div>
 
-      {/* Pipeline Overview Cards */}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 4 }}>
-        {/* Staging Events Card */}
-        <Grow in timeout={400}>
-          <Box sx={{ flex: '1 1 calc(33.333% - 16px)', minWidth: 300 }}>
-            <Card
-              elevation={0}
-              sx={{
-                border: '2px solid',
-                borderColor: 'warning.main',
-                position: 'relative',
-                overflow: 'visible',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                cursor: 'pointer',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: '0 12px 20px rgba(0, 0, 0, 0.1)',
-                  borderColor: 'warning.dark',
-                },
-              }}
-            >
+      {/* Pipeline Status Cards */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 3, mb: 4 }}>
+        <Zoom in timeout={300}>
+          <GlassCard>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <InboxIcon sx={{ mr: 1, color: 'warning.main' }} />
-                <Typography variant="h6" fontWeight="bold">
-                  Staging Events
-                </Typography>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, #FFA726 0%, #FB8C00 100%)',
+                    mr: 2,
+                  }}
+                >
+                  <InboxIcon sx={{ fontSize: 30, color: 'white' }} />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h3" fontWeight="bold">
+                    {stats.staging.total}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Staging Events
+                  </Typography>
+                </Box>
               </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 2 }}>
-                <Typography variant="h3" fontWeight="bold">
-                  {stats.staging.total}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                  total events
-                </Typography>
-              </Box>
-
-              <Stack spacing={1} sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">Pending Review</Typography>
+              <Divider sx={{ my: 2 }} />
+              <Stack spacing={1}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2">Pending</Typography>
                   <Chip label={stats.staging.pending} size="small" color="warning" />
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">Approved</Typography>
-                  <Chip label={stats.staging.approved} size="small" color="success" />
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">Rejected</Typography>
-                  <Chip label={stats.staging.rejected} size="small" color="error" />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2">Critical</Typography>
+                  <Chip label={stats.staging.critical} size="small" color="error" />
                 </Box>
               </Stack>
-
-              <Divider sx={{ my: 2 }} />
-
-              <Typography variant="caption" color="text.secondary" gutterBottom>
-                Severity Distribution
-              </Typography>
-              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                <Chip label={`C: ${stats.staging.critical}`} size="small" color="error" variant="outlined" />
-                <Chip label={`H: ${stats.staging.high}`} size="small" color="warning" variant="outlined" />
-                <Chip label={`M: ${stats.staging.medium}`} size="small" color="info" variant="outlined" />
-                <Chip label={`L: ${stats.staging.low}`} size="small" color="success" variant="outlined" />
-              </Stack>
-
               <Button
                 fullWidth
-                variant="contained"
-                color="warning"
+                variant="text"
                 endIcon={<ArrowIcon />}
                 sx={{ mt: 2 }}
                 onClick={() => router.push('/dashboard/staging')}
               >
-                Manage Staging
+                View Staging
               </Button>
             </CardContent>
-            </Card>
-          </Box>
-        </Grow>
+          </GlassCard>
+        </Zoom>
 
-        {/* Analysis Queue Card */}
-        <Grow in timeout={500}>
-          <Box sx={{ flex: '1 1 calc(33.333% - 16px)', minWidth: 300 }}>
-            <Card
-              elevation={0}
-              sx={{
-                border: '2px solid',
-                borderColor: 'info.main',
-                position: 'relative',
-                overflow: 'visible',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                cursor: 'pointer',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: '0 12px 20px rgba(0, 0, 0, 0.1)',
-                  borderColor: 'info.dark',
-                },
-              }}
-            >
+        <Zoom in timeout={400}>
+          <GlassCard>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <AnalyticsIcon sx={{ mr: 1, color: 'info.main' }} />
-                <Typography variant="h6" fontWeight="bold">
-                  Analysis Queue
-                </Typography>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, #42A5F5 0%, #1E88E5 100%)',
+                    mr: 2,
+                  }}
+                >
+                  <AnalyticsIcon sx={{ fontSize: 30, color: 'white' }} />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h3" fontWeight="bold">
+                    {stats.analysis.total}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Analysis Queue
+                  </Typography>
+                </Box>
               </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 2 }}>
-                <Typography variant="h3" fontWeight="bold">
-                  {stats.analysis.total}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                  in analysis
-                </Typography>
-              </Box>
-
-              <Stack spacing={1} sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">Pending Verification</Typography>
+              <Divider sx={{ my: 2 }} />
+              <Stack spacing={1}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2">Pending</Typography>
                   <Chip label={stats.analysis.pending} size="small" color="info" />
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">Verified</Typography>
-                  <Chip label={stats.analysis.verified} size="small" color="success" />
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">Failed</Typography>
-                  <Chip label={stats.analysis.failed} size="small" color="error" />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2">Avg Risk</Typography>
+                  <Chip
+                    label={stats.analysis.avgRiskScore.toFixed(1)}
+                    size="small"
+                    color={stats.analysis.avgRiskScore > 7 ? 'error' : stats.analysis.avgRiskScore > 4 ? 'warning' : 'success'}
+                  />
                 </Box>
               </Stack>
-
-              <Divider sx={{ my: 2 }} />
-
-              <Typography variant="caption" color="text.secondary" gutterBottom>
-                Average Risk Score
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                <Typography variant="h5" fontWeight="bold" color="info.main">
-                  {stats.analysis.avgRiskScore.toFixed(1)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                  / 10
-                </Typography>
-              </Box>
-
               <Button
                 fullWidth
-                variant="contained"
-                color="info"
+                variant="text"
                 endIcon={<ArrowIcon />}
                 sx={{ mt: 2 }}
                 onClick={() => router.push('/dashboard/analysis')}
               >
-                Manage Analysis
+                View Analysis
               </Button>
             </CardContent>
-            </Card>
-          </Box>
-        </Grow>
+          </GlassCard>
+        </Zoom>
 
-        {/* Verified Events Card */}
-        <Grow in timeout={600}>
-          <Box sx={{ flex: '1 1 calc(33.333% - 16px)', minWidth: 300 }}>
-            <Card
-              elevation={0}
-              sx={{
-                border: '2px solid',
-                borderColor: 'success.main',
-                position: 'relative',
-                overflow: 'visible',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                cursor: 'pointer',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: '0 12px 20px rgba(0, 0, 0, 0.1)',
-                  borderColor: 'success.dark',
-                },
-              }}
-            >
+        <Zoom in timeout={500}>
+          <GlassCard>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <VerifiedIcon sx={{ mr: 1, color: 'success.main' }} />
-                <Typography variant="h6" fontWeight="bold">
-                  Verified Events
-                </Typography>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, #66BB6A 0%, #43A047 100%)',
+                    mr: 2,
+                  }}
+                >
+                  <VerifiedIcon sx={{ fontSize: 30, color: 'white' }} />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h3" fontWeight="bold">
+                    {stats.verified.total}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Verified Events
+                  </Typography>
+                </Box>
               </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'baseline', mb: 2 }}>
-                <Typography variant="h3" fontWeight="bold">
-                  {stats.verified.total}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                  verified
-                </Typography>
-              </Box>
-
-              <Stack spacing={1} sx={{ mb: 2 }}>
-                {Object.entries(stats.verified.byCategory).slice(0, 3).map(([category, count]) => (
-                  <Box key={category} sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                      {category}
-                    </Typography>
-                    <Chip label={count} size="small" variant="outlined" />
-                  </Box>
-                ))}
-              </Stack>
-
               <Divider sx={{ my: 2 }} />
-
-              <Typography variant="caption" color="text.secondary" gutterBottom>
-                Severity Distribution
-              </Typography>
-              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                <Chip label={`C: ${stats.verified.critical}`} size="small" color="error" variant="outlined" />
-                <Chip label={`H: ${stats.verified.high}`} size="small" color="warning" variant="outlined" />
-                <Chip label={`M: ${stats.verified.medium}`} size="small" color="info" variant="outlined" />
-                <Chip label={`L: ${stats.verified.low}`} size="small" color="success" variant="outlined" />
+              <Stack spacing={1}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2">Critical</Typography>
+                  <Chip label={stats.verified.critical} size="small" color="error" />
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2">High Risk</Typography>
+                  <Chip label={stats.verified.high} size="small" color="warning" />
+                </Box>
               </Stack>
-
               <Button
                 fullWidth
-                variant="contained"
-                color="success"
+                variant="text"
                 endIcon={<ArrowIcon />}
                 sx={{ mt: 2 }}
                 onClick={() => router.push('/dashboard/verified')}
@@ -562,122 +593,119 @@ export default function DashboardPage() {
                 View Verified
               </Button>
             </CardContent>
-            </Card>
+          </GlassCard>
+        </Zoom>
+      </Box>
+
+      {/* Charts Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
+        <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mb: 3 }}>
+          Analytics & Insights
+        </Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 3, mb: 4 }}>
+          <AnimatedAreaChart
+            data={timeSeriesData}
+            title="Events Over Time"
+            height={250}
+            color="#6366F1"
+          />
+          <AnimatedBarChart
+            data={severityChartData}
+            title="Events by Severity"
+            height={250}
+          />
+          {categoryChartData.length > 0 && (
+            <AnimatedPieChart
+              data={categoryChartData}
+              title="Events by Category"
+              height={250}
+              outerRadius={80}
+            />
+          )}
+        </Box>
+      </motion.div>
+
+      {/* Recent Events with Progressive Disclosure */}
+      <ProgressiveDisclosure
+        title="View Recent Events"
+        variant="section"
+        basicContent={
+          <Box>
+            <Typography variant="h5" fontWeight="bold">
+              Recent Activity
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {stats.staging.recentEvents.length + stats.verified.recentEvents.length} new events in the last 24 hours
+            </Typography>
           </Box>
-        </Grow>
-      </Box>
-
-      {/* Recent Events Section */}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-        {/* Recent Staging Events */}
-        <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: 350 }}>
-          <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h6" gutterBottom fontWeight="bold">
-              Recent Staging Events
-            </Typography>
-            {stats.staging.recentEvents.length === 0 ? (
-              <Typography color="text.secondary">No recent events</Typography>
-            ) : (
-              <Stack spacing={2}>
-                {stats.staging.recentEvents.slice(0, 3).map((event) => (
-                  <Box
-                    key={event.id}
-                    sx={{
-                      p: 2,
-                      bgcolor: 'grey.50',
-                      borderRadius: 1,
-                      border: '1px solid',
-                      borderColor: 'grey.200',
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                      <Typography variant="body2" fontWeight="medium" sx={{ flex: 1, mr: 1 }}>
-                        {event.event?.title?.substring(0, 60)}...
+        }
+        advancedContent={
+          <Stack spacing={2}>
+            {[...stats.staging.recentEvents.slice(0, 3), ...stats.verified.recentEvents.slice(0, 2)].map((event, index) => (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Paper
+                  sx={{
+                    p: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    background: 'transparent',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                      transform: 'translateX(4px)',
+                    },
+                  }}
+                  onClick={() => router.push(event.verifiedAt ? '/dashboard/verified' : '/dashboard/staging')}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 40,
+                        borderRadius: 1,
+                        background: event.event?.severity === 'critical' ? '#EF4444' :
+                                   event.event?.severity === 'high' ? '#F59E0B' :
+                                   event.event?.severity === 'medium' ? '#3B82F6' : '#10B981',
+                      }}
+                    />
+                    <Box>
+                      <Typography variant="body1" fontWeight="medium">
+                        {event.event?.title || 'Untitled Event'}
                       </Typography>
-                      <Chip
-                        label={event.event?.severity}
-                        size="small"
-                        color={getSeverityColor(event.event?.severity)}
-                      />
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Typography variant="caption" color="text.secondary">
-                        {event.event?.location?.country?.eng || 'Unknown'}
+                        {formatDate(event.collectedAt || event.verifiedAt)} • {event.event?.location?.country?.eng || 'Unknown'}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {formatDate(event.collectedAt)}
-                      </Typography>
-                      <Chip
-                        label={event.reviewStatus}
-                        size="small"
-                        variant="outlined"
-                        color={
-                          event.reviewStatus === 'pending' ? 'warning' :
-                          event.reviewStatus === 'approved' ? 'success' : 'error'
-                        }
-                      />
                     </Box>
                   </Box>
-                ))}
-              </Stack>
-            )}
-          </Paper>
-        </Box>
+                  <Chip
+                    label={event.reviewStatus || 'verified'}
+                    size="small"
+                    color={event.reviewStatus === 'pending' ? 'warning' : 'success'}
+                    variant="outlined"
+                  />
+                </Paper>
+              </motion.div>
+            ))}
+          </Stack>
+        }
+      />
 
-        {/* Recent Verified Events */}
-        <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: 350 }}>
-          <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="h6" gutterBottom fontWeight="bold">
-              Recent Verified Events
-            </Typography>
-            {stats.verified.recentEvents.length === 0 ? (
-              <Typography color="text.secondary">No recent events</Typography>
-            ) : (
-              <Stack spacing={2}>
-                {stats.verified.recentEvents.slice(0, 3).map((event) => (
-                  <Box
-                    key={event.id}
-                    sx={{
-                      p: 2,
-                      bgcolor: 'green.50',
-                      borderRadius: 1,
-                      border: '1px solid',
-                      borderColor: 'green.200',
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                      <Typography variant="body2" fontWeight="medium" sx={{ flex: 1, mr: 1 }}>
-                        {event.event?.title?.substring(0, 60)}...
-                      </Typography>
-                      <Chip
-                        label={event.event?.severity}
-                        size="small"
-                        color={getSeverityColor(event.event?.severity)}
-                      />
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        {event.event?.location?.country?.eng || 'Unknown'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {formatDate(event.verifiedAt || event.event?.dateTime)}
-                      </Typography>
-                      {event.analysis?.riskScore && (
-                        <Chip
-                          label={`Risk: ${event.analysis.riskScore}/10`}
-                          size="small"
-                          variant="outlined"
-                        />
-                      )}
-                    </Box>
-                  </Box>
-                ))}
-              </Stack>
-            )}
-          </Paper>
-        </Box>
-      </Box>
+      {/* Quick Actions SpeedDial */}
+      <QuickActions actions={quickActionHandlers} />
     </Box>
-    </Fade>
   );
 }

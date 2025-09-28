@@ -19,10 +19,18 @@ import {
   Alert,
   CircularProgress,
   LinearProgress,
-  Skeleton,
-  Fade,
-  Grow,
-  Zoom,
+  Tabs,
+  Tab,
+  List,
+  ListItem,
+  ListItemText,
+  Rating,
+  TextField,
+  InputAdornment,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   CheckCircle as VerifiedIcon,
@@ -35,6 +43,11 @@ import {
   Assessment as AssessmentIcon,
   Download as DownloadIcon,
   FilterList as FilterIcon,
+  Security as SecurityIcon,
+  Timeline as TimelineIcon,
+  Search as SearchIcon,
+  Description as DescriptionIcon,
+  Event as EventIcon,
 } from '@mui/icons-material';
 import { db } from '@/lib/firebase/client';
 import {
@@ -45,8 +58,15 @@ import {
   limit,
   where,
   Timestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import GlassCard from '@/components/GlassCard';
+import LoadingSkeleton from '@/components/LoadingSkeleton';
+import EmptyState from '@/components/EmptyState';
+import QuickActions from '@/components/QuickActions';
+import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
+import { motion } from 'framer-motion';
 
 interface VerifiedEvent {
   id: string;
@@ -62,79 +82,106 @@ interface VerifiedEvent {
     category: string;
     severity: string;
   };
-  analysis: {
-    riskScore: number;
-    confidence: number;
-    keyFindings?: string[];
-    recommendations?: string[];
-    impactAssessment?: Record<string, string>;
-    geocoding?: {
-      latitude?: number;
-      longitude?: number;
-      address?: string;
+  analysis?: {
+    severity?: number;
+    riskClassification?: {
+      confidence?: number;
+      primary?: string;
+      secondary?: string[];
     };
+    advisory?: {
+      keyTakeaways?: string[];
+      recommendations?: string[];
+      relatedRisks?: string[];
+    };
+    geocoding?: {
+      coordinates?: {
+        lat?: number;
+        lng?: number;
+        formattedAddress?: string;
+      };
+      affectedRegions?: string[];
+      confidence?: number;
+      geocodingService?: string;
+    };
+    impactAssessment?: {
+      severity?: number;
+      radiusKm?: number;
+      radiusCategory?: string;
+      estimatedAffectedPopulation?: number;
+      sectors?: string[];
+    };
+    temporal?: {
+      eventStart?: string;
+      expectedDuration?: string;
+      isOngoing?: boolean;
+    };
+    model?: string;
+    modelRegion?: string;
+    processedAt?: Timestamp;
   };
-  verifiedAt?: Timestamp;
-  verifiedBy?: string;
+  processHistory?: {
+    collectedAt?: Timestamp;
+    analyzedAt?: Timestamp;
+    verifiedAt?: Timestamp;
+  };
   metadata?: {
-    articleCount: number;
-    newsApiUri: string;
+    createdAt?: Timestamp;
+    lastUpdated?: Timestamp;
   };
+  originalMetadata?: {
+    articleCount?: number;
+    newsApiUri?: string;
+    isDuplicate?: boolean;
+    relatedEvents?: string[];
+  };
+  indices?: {
+    byDate?: string;
+    byRegion?: string;
+    bySeverity?: number;
+    byType?: string;
+  };
+  visibility?: {
+    projects?: string[];
+  };
+  tags?: string[];
+  version?: number;
 }
 
-export default function VerifiedEventsPage() {
+export default function EnhancedVerifiedEventsPage() {
   const [events, setEvents] = useState<VerifiedEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<VerifiedEvent | null>(null);
   const [viewDialog, setViewDialog] = useState(false);
-  const [filter, setFilter] = useState<{
-    severity?: string;
-    category?: string;
-    minRiskScore?: number;
-  }>({});
+  const [tabValue, setTabValue] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterSeverity, setFilterSeverity] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
-  const fetchEvents = async () => {
-    try {
-      setLoading(true);
-      let q = query(collection(db, 'verified_events'));
-
-      // Apply filters if any
-      if (filter.severity) {
-        q = query(q, where('event.severity', '==', filter.severity));
-      }
-      if (filter.category) {
-        q = query(q, where('event.category', '==', filter.category));
-      }
-
-      const snapshot = await getDocs(q);
-
+  // Set up real-time listener
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'verified_events'), (snapshot) => {
       const fetchedEvents: VerifiedEvent[] = [];
       snapshot.forEach((doc) => {
-        const data = doc.data() as Omit<VerifiedEvent, 'id'>;
-        if (!filter.minRiskScore || (data.analysis?.riskScore || 0) >= filter.minRiskScore) {
-          fetchedEvents.push({
-            ...data,
-            id: doc.id,
-          });
-        }
+        const data = doc.data();
+        fetchedEvents.push({
+          id: doc.id,
+          ...data
+        } as VerifiedEvent);
       });
-
-      // Sort by risk score descending
-      fetchedEvents.sort((a, b) => (b.analysis?.riskScore || 0) - (a.analysis?.riskScore || 0));
-
+      // Sort by severity descending
+      fetchedEvents.sort((a, b) => (b.analysis?.impactAssessment?.severity || 0) - (a.analysis?.impactAssessment?.severity || 0));
       setEvents(fetchedEvents);
-    } catch (error) {
-      console.error('Error fetching verified events:', error);
-      toast.error('Failed to fetch verified events');
-    } finally {
       setLoading(false);
-    }
-  };
+    }, (error) => {
+      console.error('Error listening to events:', error);
+      toast.error('Failed to connect to real-time updates');
+      setLoading(false);
+    });
 
-  useEffect(() => {
-    fetchEvents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+    return () => unsubscribe();
+  }, []);
 
   const handleView = (event: VerifiedEvent) => {
     setSelectedEvent(event);
@@ -144,508 +191,700 @@ export default function VerifiedEventsPage() {
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'N/A';
 
-    // Handle Firestore Timestamp object
+    // Handle Firestore Timestamp
+    if (timestamp && timestamp.toDate) {
+      return timestamp.toDate().toLocaleString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    // Handle seconds format
     if (timestamp && typeof timestamp === 'object' && '_seconds' in timestamp) {
       return new Date(timestamp._seconds * 1000).toLocaleString('en-US', {
         month: 'long',
         day: 'numeric',
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit',
-      });
-    }
-
-    // Handle if it's already a Date object
-    if (timestamp instanceof Date) {
-      return timestamp.toLocaleString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+        minute: '2-digit'
       });
     }
 
     return 'N/A';
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'error';
-      case 'high': return 'warning';
-      case 'medium': return 'info';
-      case 'low': return 'success';
-      default: return 'default';
-    }
+  const getSeverityColor = (severity: number): "error" | "warning" | "info" | "success" | "default" => {
+    if (severity >= 8) return 'error';
+    if (severity >= 6) return 'warning';
+    if (severity >= 4) return 'info';
+    if (severity >= 2) return 'success';
+    return 'default';
   };
 
-  const getRiskColor = (score: number) => {
-    if (score >= 8) return '#f44336';
-    if (score >= 6) return '#ff9800';
-    if (score >= 4) return '#2196f3';
-    return '#4caf50';
+  const getRiskBadgeColor = (score: number) => {
+    if (score >= 8) return 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)';
+    if (score >= 6) return 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)';
+    if (score >= 4) return 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)';
+    return 'linear-gradient(135deg, #10B981 0%, #059669 100%)';
   };
 
-  const exportData = () => {
-    const csvContent = [
-      ['Event ID', 'Title', 'Category', 'Severity', 'Risk Score', 'Location', 'Date'].join(','),
-      ...events.map(e => [
-        e.eventId,
-        `"${e.event.title.replace(/"/g, '""')}"`,
-        e.event.category,
-        e.event.severity,
-        e.analysis?.riskScore || 0,
-        `"${e.event.location.country.eng}"`,
-        formatDate(e.event.dateTime),
-      ].join(','))
-    ].join('\n');
+  // Filter events
+  const filteredEvents = events.filter(event => {
+    const matchesSearch = searchTerm === '' ||
+      event.event?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      event.event?.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      event.event?.location?.country?.eng?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `verified-events-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-  };
+    const matchesSeverity = filterSeverity === 'all' ||
+      (filterSeverity === 'critical' && (event.analysis?.impactAssessment?.severity || 0) >= 8) ||
+      (filterSeverity === 'high' && (event.analysis?.impactAssessment?.severity || 0) >= 6 && (event.analysis?.impactAssessment?.severity || 0) < 8) ||
+      (filterSeverity === 'medium' && (event.analysis?.impactAssessment?.severity || 0) >= 4 && (event.analysis?.impactAssessment?.severity || 0) < 6) ||
+      (filterSeverity === 'low' && (event.analysis?.impactAssessment?.severity || 0) < 4);
 
-  // Calculate statistics
+    const matchesCategory = filterCategory === 'all' || event.event?.category === filterCategory;
+
+    return matchesSearch && matchesSeverity && matchesCategory;
+  });
+
+  // Get statistics
   const stats = {
-    total: events.length,
-    critical: events.filter(e => e.event.severity === 'critical').length,
-    high: events.filter(e => e.event.severity === 'high').length,
-    avgRiskScore: events.reduce((acc, e) => acc + (e.analysis?.riskScore || 0), 0) / (events.length || 1),
-    byCategory: events.reduce((acc, e) => {
-      acc[e.event.category] = (acc[e.event.category] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>),
-    highRiskEvents: events.filter(e => (e.analysis?.riskScore || 0) >= 8),
+    total: filteredEvents.length,
+    critical: filteredEvents.filter(e => (e.analysis?.impactAssessment?.severity || 0) >= 8).length,
+    high: filteredEvents.filter(e => (e.analysis?.impactAssessment?.severity || 0) >= 6 && (e.analysis?.impactAssessment?.severity || 0) < 8).length,
+    avgRisk: filteredEvents.length > 0
+      ? filteredEvents.reduce((sum, e) => sum + (e.analysis?.impactAssessment?.severity || 0), 0) / filteredEvents.length
+      : 0,
   };
+
+  // Get unique categories
+  const categories = [...new Set(events.map(e => e.event?.category).filter(Boolean))];
+
+  // Quick Actions
+  const quickActionHandlers = [
+    {
+      icon: <RefreshIcon />,
+      name: 'Refresh',
+      onClick: () => window.location.reload(),
+      color: 'info' as const,
+    },
+    {
+      icon: <DownloadIcon />,
+      name: 'Export',
+      onClick: () => toast('Export feature coming soon!'),
+      color: 'success' as const,
+    },
+  ];
 
   if (loading) {
+    return <LoadingSkeleton variant="card" rows={6} />;
+  }
+
+  if (events.length === 0) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
-        <CircularProgress />
-      </Box>
+      <>
+        <EmptyState
+          title="No Verified Events"
+          description="Verified events will appear here once they've been analyzed and confirmed."
+          icon={<VerifiedIcon />}
+          height="60vh"
+        />
+        <QuickActions actions={quickActionHandlers} />
+      </>
     );
   }
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Verified Events Intelligence
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Analyzed and verified risk intelligence events
-          </Typography>
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box>
+            <Typography variant="h4" fontWeight="bold">
+              Verified Intelligence Events
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Confirmed and analyzed threat intelligence
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant={viewMode === 'cards' ? 'contained' : 'outlined'}
+              onClick={() => setViewMode('cards')}
+            >
+              Card View
+            </Button>
+            <Button
+              variant={viewMode === 'table' ? 'contained' : 'outlined'}
+              onClick={() => setViewMode('table')}
+            >
+              Table View
+            </Button>
+          </Stack>
         </Box>
-        <Stack direction="row" spacing={2}>
-          <Button
-            variant="outlined"
-            startIcon={<DownloadIcon />}
-            onClick={exportData}
-          >
-            Export CSV
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<RefreshIcon />}
-            onClick={fetchEvents}
-          >
-            Refresh
-          </Button>
-        </Stack>
-      </Box>
+      </motion.div>
 
-      {/* Summary Statistics */}
-      <Stack direction="row" spacing={3} sx={{ mb: 4, flexWrap: 'wrap' }}>
-        <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
-          <Card sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-            <CardContent>
-              <Box sx={{ color: 'white' }}>
-                <Typography variant="h3" fontWeight="bold">
-                  {stats.total}
-                </Typography>
-                <Typography variant="body1">
-                  Total Verified Events
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                  <VerifiedIcon sx={{ mr: 1 }} />
-                  <Typography variant="caption">
-                    Fully processed & verified
-                  </Typography>
-                </Box>
+      {/* Statistics */}
+      <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+        <GlassCard sx={{ flex: 1 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <VerifiedIcon sx={{ fontSize: 40, color: 'success.main' }} />
+              <Box>
+                <Typography variant="h4" fontWeight="bold">{stats.total}</Typography>
+                <Typography variant="body2" color="text.secondary">Total Verified</Typography>
               </Box>
-            </CardContent>
-          </Card>
-        </Box>
+            </Box>
+          </CardContent>
+        </GlassCard>
 
-        <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
-          <Card sx={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
-            <CardContent>
-              <Box sx={{ color: 'white' }}>
-                <Typography variant="h3" fontWeight="bold">
-                  {stats.critical}
-                </Typography>
-                <Typography variant="body1">
-                  Critical Events
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                  <WarningIcon sx={{ mr: 1 }} />
-                  <Typography variant="caption">
-                    Requires immediate attention
-                  </Typography>
-                </Box>
+        <GlassCard sx={{ flex: 1 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <WarningIcon sx={{ fontSize: 40, color: 'error.main' }} />
+              <Box>
+                <Typography variant="h4" fontWeight="bold">{stats.critical}</Typography>
+                <Typography variant="body2" color="text.secondary">Critical Risk</Typography>
               </Box>
-            </CardContent>
-          </Card>
-        </Box>
+            </Box>
+          </CardContent>
+        </GlassCard>
 
-        <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
-          <Card sx={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }}>
-            <CardContent>
-              <Box sx={{ color: 'white' }}>
-                <Typography variant="h3" fontWeight="bold">
-                  {stats.avgRiskScore.toFixed(1)}
-                </Typography>
-                <Typography variant="body1">
-                  Average Risk Score
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                  <TrendingUpIcon sx={{ mr: 1 }} />
-                  <Typography variant="caption">
-                    Out of 10
-                  </Typography>
-                </Box>
+        <GlassCard sx={{ flex: 1 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <TrendingUpIcon sx={{ fontSize: 40, color: 'warning.main' }} />
+              <Box>
+                <Typography variant="h4" fontWeight="bold">{stats.high}</Typography>
+                <Typography variant="body2" color="text.secondary">High Risk</Typography>
               </Box>
-            </CardContent>
-          </Card>
-        </Box>
+            </Box>
+          </CardContent>
+        </GlassCard>
 
-        <Box sx={{ flex: '1 1 200px', minWidth: 200 }}>
-          <Card sx={{ background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' }}>
-            <CardContent>
-              <Box sx={{ color: 'white' }}>
-                <Typography variant="h3" fontWeight="bold">
-                  {stats.highRiskEvents.length}
-                </Typography>
-                <Typography variant="body1">
-                  High Risk Events
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                  <AssessmentIcon sx={{ mr: 1 }} />
-                  <Typography variant="caption">
-                    Risk score ≥ 8
-                  </Typography>
-                </Box>
+        <GlassCard sx={{ flex: 1 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <AssessmentIcon sx={{ fontSize: 40, color: 'info.main' }} />
+              <Box>
+                <Typography variant="h4" fontWeight="bold">{stats.avgRisk.toFixed(1)}</Typography>
+                <Typography variant="body2" color="text.secondary">Avg Risk Score</Typography>
               </Box>
-            </CardContent>
-          </Card>
-        </Box>
+            </Box>
+          </CardContent>
+        </GlassCard>
       </Stack>
 
-      {/* Category Breakdown */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Events by Category
-        </Typography>
-        <Stack direction="row" spacing={2} flexWrap="wrap">
-          {Object.entries(stats.byCategory).map(([category, count]) => (
-            <Chip
-              key={category}
-              label={`${category}: ${count}`}
+      {/* Filters */}
+      <ProgressiveDisclosure
+        title="Show Filters"
+        variant="inline"
+        basicContent={
+          <TextField
+            fullWidth
+            placeholder="Search events by title, summary, or location..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 3 }}
+          />
+        }
+        advancedContent={
+          <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+            <FormControl sx={{ minWidth: 150 }}>
+              <InputLabel>Severity</InputLabel>
+              <Select
+                value={filterSeverity}
+                onChange={(e) => setFilterSeverity(e.target.value)}
+                label="Severity"
+                size="small"
+              >
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="critical">Critical (8-10)</MenuItem>
+                <MenuItem value="high">High (6-7)</MenuItem>
+                <MenuItem value="medium">Medium (4-5)</MenuItem>
+                <MenuItem value="low">Low (0-3)</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl sx={{ minWidth: 150 }}>
+              <InputLabel>Category</InputLabel>
+              <Select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                label="Category"
+                size="small"
+              >
+                <MenuItem value="all">All</MenuItem>
+                {categories.map(cat => (
+                  <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button
               variant="outlined"
-              sx={{ textTransform: 'capitalize' }}
-            />
+              onClick={() => {
+                setFilterSeverity('all');
+                setFilterCategory('all');
+                setSearchTerm('');
+              }}
+            >
+              Clear Filters
+            </Button>
+          </Stack>
+        }
+      />
+
+      {/* Events Display */}
+      {viewMode === 'cards' ? (
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 3 }}>
+          {filteredEvents.map((event, index) => (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                key={event.id}
+              >
+                <GlassCard
+                  sx={{
+                    height: '100%',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    overflow: 'visible',
+                  }}
+                  onClick={() => handleView(event)}
+                >
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: -10,
+                      right: -10,
+                      width: 60,
+                      height: 60,
+                      borderRadius: '50%',
+                      background: getRiskBadgeColor(event.analysis?.impactAssessment?.severity || 0),
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                    }}
+                  >
+                    <Typography variant="h6" fontWeight="bold" color="white">
+                      {event.analysis?.impactAssessment?.severity || 0}
+                    </Typography>
+                  </Box>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight="bold" gutterBottom noWrap>
+                      {event.event?.title}
+                    </Typography>
+                    <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                      <Chip
+                        label={event.event?.category || 'unknown'}
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                      />
+                      <Chip
+                        label={event.event?.severity}
+                        size="small"
+                        color={getSeverityColor(8)}
+                      />
+                    </Stack>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        mb: 2,
+                      }}
+                    >
+                      {event.event?.summary}
+                    </Typography>
+                    <Divider sx={{ my: 1 }} />
+                    <Stack spacing={1}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <LocationIcon fontSize="small" color="action" />
+                        <Typography variant="body2" noWrap>
+                          {event.event?.location?.text?.eng}, {event.event?.location?.country?.eng}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <EventIcon fontSize="small" color="action" />
+                        <Typography variant="body2">
+                          {formatDate(event.processHistory?.verifiedAt || event.metadata?.createdAt)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                    <Button
+                      fullWidth
+                      variant="text"
+                      sx={{ mt: 2 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleView(event);
+                      }}
+                    >
+                      View Full Intelligence
+                    </Button>
+                  </CardContent>
+                </GlassCard>
+              </motion.div>
           ))}
-        </Stack>
-      </Paper>
-
-      {/* High Risk Events */}
-      <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
-        High Priority Events
-      </Typography>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-        {stats.highRiskEvents.slice(0, 6).map((event) => (
-          <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: 350 }} key={event.id}>
-            <Card
-              sx={{
-                border: '2px solid',
-                borderColor: getSeverityColor(event.event.severity) + '.main',
-                cursor: 'pointer',
-                transition: 'all 0.3s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: 4,
-                },
-              }}
-              onClick={() => handleView(event)}
-            >
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Box sx={{ flex: 1, pr: 2 }}>
-                    <Typography variant="h6" gutterBottom>
-                      {event.event.title.substring(0, 100)}...
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" paragraph>
-                      {event.event.summary.substring(0, 150)}...
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'center', minWidth: 80 }}>
-                    <Typography variant="h4" sx={{ color: getRiskColor(event.analysis?.riskScore || 0) }}>
-                      {event.analysis?.riskScore || 0}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Risk Score
-                    </Typography>
-                  </Box>
-                </Box>
-
-                <Divider sx={{ my: 2 }} />
-
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Chip
-                    label={event.event.category}
-                    size="small"
-                    icon={<CategoryIcon />}
-                    variant="outlined"
-                  />
-                  <Chip
-                    label={event.event.severity}
-                    size="small"
-                    color={getSeverityColor(event.event.severity) as any}
-                  />
-                  <Box sx={{ flexGrow: 1 }} />
-                  <Typography variant="caption" color="text.secondary">
-                    <LocationIcon sx={{ fontSize: 14, verticalAlign: 'middle' }} />
-                    {event.event.location.country.eng}
-                  </Typography>
-                </Stack>
-
-                {event.analysis?.keyFindings && event.analysis.keyFindings.length > 0 && (
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Key Finding:
-                    </Typography>
-                    <Typography variant="body2">
-                      • {event.analysis.keyFindings[0].substring(0, 100)}...
-                    </Typography>
-                  </Box>
-                )}
-              </CardContent>
-            </Card>
-          </Box>
-        ))}
-      </Box>
-
-      {/* All Events List */}
-      <Typography variant="h5" gutterBottom sx={{ mt: 4 }}>
-        All Verified Events
-      </Typography>
-      <Stack spacing={2}>
-        {events.map((event) => (
-          <Box key={event.id}>
-            <Paper
-              sx={{
-                p: 2,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                '&:hover': { bgcolor: 'action.hover' },
-              }}
-              onClick={() => handleView(event)}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box sx={{
-                  width: 60,
-                  height: 60,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 2,
-                  bgcolor: getRiskColor(event.analysis?.riskScore || 0) + '20',
-                  color: getRiskColor(event.analysis?.riskScore || 0),
-                }}>
-                  <Typography variant="h6" fontWeight="bold">
-                    {event.analysis?.riskScore || 0}
-                  </Typography>
-                </Box>
-
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="subtitle1" fontWeight="medium">
-                    {event.event.title}
-                  </Typography>
-                  <Stack direction="row" spacing={2} sx={{ mt: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      {event.event.location.country.eng}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {formatDate(event.event.dateTime)}
-                    </Typography>
-                    <Chip label={event.event.category} size="small" variant="outlined" />
-                    <Chip
-                      label={event.event.severity}
-                      size="small"
-                      color={getSeverityColor(event.event.severity) as any}
-                    />
-                  </Stack>
-                </Box>
-
-                <IconButton>
-                  <ViewIcon />
-                </IconButton>
-              </Box>
-            </Paper>
-          </Box>
-        ))}
-      </Stack>
+        </Box>
+      ) : (
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="body1">Table view coming soon...</Typography>
+        </Paper>
+      )}
 
       {/* View Dialog */}
       <Dialog open={viewDialog} onClose={() => setViewDialog(false)} maxWidth="lg" fullWidth>
         <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <VerifiedIcon color="success" />
-            <Typography variant="h6">Verified Event Intelligence Report</Typography>
-          </Box>
+          <Typography variant="h5" fontWeight="bold">
+            Verified Intelligence Report
+          </Typography>
         </DialogTitle>
         <DialogContent>
           {selectedEvent && (
-            <Stack spacing={3} sx={{ mt: 1 }}>
-              <Box>
-                <Alert severity="success" icon={<VerifiedIcon />}>
-                  This event has been verified and confirmed by our intelligence team
-                  {selectedEvent.verifiedBy && ` by ${selectedEvent.verifiedBy}`}
-                  {selectedEvent.verifiedAt && ` on ${formatDate(selectedEvent.verifiedAt)}`}
-                </Alert>
-              </Box>
+            <Box>
+              <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 2 }}>
+                <Tab label="Event Details" />
+                <Tab label="Risk Analysis" />
+                <Tab label="Advisory & Recommendations" />
+                <Tab label="Impact Assessment" />
+                <Tab label="Metadata" />
+              </Tabs>
 
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-                <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
-                  <Typography variant="h6" gutterBottom>Event Details</Typography>
-                <Stack spacing={2}>
+              {/* Event Details Tab */}
+              {tabValue === 0 && (
+                <Stack spacing={3}>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Event ID</Typography>
-                    <Typography variant="body1">{selectedEvent.eventId}</Typography>
+                    <Typography variant="body1" fontWeight="medium">{selectedEvent.eventId}</Typography>
                   </Box>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Title</Typography>
-                    <Typography variant="h6">{selectedEvent.event.title}</Typography>
+                    <Typography variant="h6">{selectedEvent.event?.title}</Typography>
                   </Box>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Summary</Typography>
-                    <Typography variant="body1">{selectedEvent.event.summary}</Typography>
+                    <Paper sx={{ p: 2, backgroundColor: 'action.hover' }}>
+                      <Typography variant="body1">{selectedEvent.event?.summary}</Typography>
+                    </Paper>
                   </Box>
                   <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Location</Typography>
-                    <Typography variant="body1">
-                      {selectedEvent.event.location.text.eng}, {selectedEvent.event.location.country.eng}
-                    </Typography>
-                    {selectedEvent.analysis?.geocoding && (
-                      <Typography variant="caption" color="text.secondary">
-                        Coordinates: {selectedEvent.analysis.geocoding.latitude}, {selectedEvent.analysis.geocoding.longitude}
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>Location</Typography>
+                    <Stack direction="row" spacing={1}>
+                      <LocationIcon color="action" />
+                      <Typography variant="body1">
+                        {selectedEvent.event?.location?.text?.eng}, {selectedEvent.event?.location?.country?.eng}
+                      </Typography>
+                    </Stack>
+                    {selectedEvent.analysis?.geocoding?.coordinates && (
+                      <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
+                        Coordinates: {selectedEvent.analysis.geocoding.coordinates.lat}, {selectedEvent.analysis.geocoding.coordinates.lng}
                       </Typography>
                     )}
                   </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Event Date</Typography>
-                    <Typography variant="body1">{formatDate(selectedEvent.event.dateTime)}</Typography>
-                  </Box>
+                  <Stack direction="row" spacing={2}>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">Category</Typography>
+                      <Chip label={selectedEvent.event?.category || 'unknown'} color="primary" />
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">Severity</Typography>
+                      <Chip label={selectedEvent.event?.severity} color={getSeverityColor(8)} />
+                    </Box>
+                  </Stack>
                 </Stack>
-                </Box>
+              )}
 
-                <Box sx={{ flex: '1 1 calc(50% - 12px)', minWidth: 300 }}>
-                  <Typography variant="h6" gutterBottom>Risk Analysis</Typography>
-                <Stack spacing={2}>
+              {/* Risk Analysis Tab */}
+              {tabValue === 1 && selectedEvent.analysis && (
+                <Stack spacing={3}>
                   <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Risk Assessment</Typography>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>Risk Score</Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <Box sx={{ flex: 1 }}>
-                        <LinearProgress
-                          variant="determinate"
-                          value={selectedEvent.analysis.riskScore * 10}
-                          sx={{
-                            height: 10,
-                            borderRadius: 5,
-                            bgcolor: 'grey.200',
-                            '& .MuiLinearProgress-bar': {
-                              bgcolor: getRiskColor(selectedEvent.analysis.riskScore),
-                            },
-                          }}
-                        />
-                      </Box>
-                      <Typography variant="h5" sx={{ color: getRiskColor(selectedEvent.analysis.riskScore) }}>
-                        {selectedEvent.analysis.riskScore}/10
+                      <Rating value={selectedEvent.analysis.impactAssessment?.severity || 0} max={10} readOnly size="large" />
+                      <Typography variant="h4" fontWeight="bold" color={getSeverityColor(selectedEvent.analysis.impactAssessment?.severity || 0)}>
+                        {selectedEvent.analysis.impactAssessment?.severity || 0}/10
                       </Typography>
                     </Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Confidence: {(selectedEvent.analysis.confidence * 100).toFixed(0)}%
-                    </Typography>
                   </Box>
 
-                  {selectedEvent.analysis.keyFindings && (
+                  {selectedEvent.analysis.riskClassification && (
                     <Box>
-                      <Typography variant="subtitle2" color="text.secondary">Key Findings</Typography>
-                      <Stack spacing={1} sx={{ mt: 1 }}>
-                        {selectedEvent.analysis.keyFindings.map((finding, idx) => (
-                          <Typography key={idx} variant="body2">
-                            • {finding}
-                          </Typography>
-                        ))}
+                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>Risk Classification</Typography>
+                      <Stack spacing={1}>
+                        <Stack direction="row" spacing={1}>
+                          <Chip
+                            label={`Primary: ${selectedEvent.analysis.riskClassification.primary}`}
+                            color="primary"
+                            variant="filled"
+                          />
+                          <Chip
+                            label={`Confidence: ${((selectedEvent.analysis.riskClassification.confidence || 0) * 100).toFixed(0)}%`}
+                            color="success"
+                            variant="outlined"
+                          />
+                        </Stack>
+                        {selectedEvent.analysis.riskClassification.secondary && (
+                          <Stack direction="row" spacing={1} flexWrap="wrap">
+                            {selectedEvent.analysis.riskClassification.secondary.map((risk, idx) => (
+                              <Chip key={idx} label={risk} size="small" variant="outlined" />
+                            ))}
+                          </Stack>
+                        )}
                       </Stack>
                     </Box>
                   )}
 
-                  {selectedEvent.analysis.recommendations && (
+                  {selectedEvent.analysis.temporal && (
                     <Box>
-                      <Typography variant="subtitle2" color="text.secondary">Recommendations</Typography>
-                      <Stack spacing={1} sx={{ mt: 1 }}>
-                        {selectedEvent.analysis.recommendations.map((rec, idx) => (
-                          <Typography key={idx} variant="body2">
-                            • {rec}
+                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>Temporal Analysis</Typography>
+                      <Paper sx={{ p: 2, backgroundColor: 'action.hover' }}>
+                        <Stack spacing={1}>
+                          <Typography variant="body2">
+                            <strong>Event Start:</strong> {selectedEvent.analysis.temporal.eventStart}
                           </Typography>
+                          <Typography variant="body2">
+                            <strong>Expected Duration:</strong> {selectedEvent.analysis.temporal.expectedDuration}
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>Is Ongoing:</strong> {selectedEvent.analysis.temporal.isOngoing ? 'Yes' : 'No'}
+                          </Typography>
+                        </Stack>
+                      </Paper>
+                    </Box>
+                  )}
+
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>Analysis Info</Typography>
+                    <Stack spacing={1}>
+                      <Typography variant="body2">Model: {selectedEvent.analysis.model}</Typography>
+                      <Typography variant="body2">Region: {selectedEvent.analysis.modelRegion}</Typography>
+                      <Typography variant="body2">Processed: {formatDate(selectedEvent.analysis.processedAt)}</Typography>
+                    </Stack>
+                  </Box>
+                </Stack>
+              )}
+
+              {/* Advisory Tab */}
+              {tabValue === 2 && selectedEvent.analysis?.advisory && (
+                <Stack spacing={3}>
+                  {selectedEvent.analysis.advisory.keyTakeaways && (
+                    <Box>
+                      <Typography variant="h6" gutterBottom>
+                        <SecurityIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                        Key Takeaways
+                      </Typography>
+                      <List>
+                        {selectedEvent.analysis.advisory.keyTakeaways.map((takeaway, idx) => (
+                          <ListItem key={idx}>
+                            <ListItemText
+                              primary={`${idx + 1}. ${takeaway}`}
+                              primaryTypographyProps={{ variant: 'body1' }}
+                            />
+                          </ListItem>
                         ))}
-                      </Stack>
+                      </List>
+                    </Box>
+                  )}
+
+                  {selectedEvent.analysis.advisory.recommendations && (
+                    <Box>
+                      <Typography variant="h6" gutterBottom>
+                        <AssessmentIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                        Recommendations
+                      </Typography>
+                      <List>
+                        {selectedEvent.analysis.advisory.recommendations.map((rec, idx) => (
+                          <ListItem key={idx}>
+                            <ListItemText
+                              primary={`${idx + 1}. ${rec}`}
+                              primaryTypographyProps={{ variant: 'body1' }}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </Box>
+                  )}
+
+                  {selectedEvent.analysis.advisory.relatedRisks && (
+                    <Box>
+                      <Typography variant="h6" gutterBottom>
+                        <WarningIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                        Related Risks
+                      </Typography>
+                      <List>
+                        {selectedEvent.analysis.advisory.relatedRisks.map((risk, idx) => (
+                          <ListItem key={idx}>
+                            <ListItemText
+                              primary={`${idx + 1}. ${risk}`}
+                              primaryTypographyProps={{ variant: 'body1' }}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </Box>
+                  )}
+                </Stack>
+              )}
+
+              {/* Impact Assessment Tab */}
+              {tabValue === 3 && selectedEvent.analysis && (
+                <Stack spacing={3}>
+                  {selectedEvent.analysis.geocoding && (
+                    <Box>
+                      <Typography variant="h6" gutterBottom>
+                        <LocationIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                        Geographic Impact
+                      </Typography>
+                      <Paper sx={{ p: 2, backgroundColor: 'action.hover' }}>
+                        <Stack spacing={1}>
+                          {selectedEvent.analysis.geocoding.coordinates && (
+                            <>
+                              <Typography variant="body2">
+                                <strong>Coordinates:</strong> {selectedEvent.analysis.geocoding.coordinates.lat}, {selectedEvent.analysis.geocoding.coordinates.lng}
+                              </Typography>
+                              <Typography variant="body2">
+                                <strong>Address:</strong> {selectedEvent.analysis.geocoding.coordinates.formattedAddress}
+                              </Typography>
+                            </>
+                          )}
+                          <Typography variant="body2">
+                            <strong>Confidence:</strong> {((selectedEvent.analysis.geocoding.confidence || 0) * 100).toFixed(0)}%
+                          </Typography>
+                          {selectedEvent.analysis.geocoding.affectedRegions && (
+                            <Box>
+                              <Typography variant="body2" gutterBottom><strong>Affected Regions:</strong></Typography>
+                              <Stack direction="row" spacing={1} flexWrap="wrap">
+                                {selectedEvent.analysis.geocoding.affectedRegions.map((region, idx) => (
+                                  <Chip key={idx} label={region} size="small" variant="outlined" />
+                                ))}
+                              </Stack>
+                            </Box>
+                          )}
+                        </Stack>
+                      </Paper>
                     </Box>
                   )}
 
                   {selectedEvent.analysis.impactAssessment && (
                     <Box>
-                      <Typography variant="subtitle2" color="text.secondary">Impact Assessment</Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
-                        {Object.entries(selectedEvent.analysis.impactAssessment).map(([key, value]) => (
-                          <Box sx={{ flex: '1 1 calc(50% - 8px)' }} key={key}>
-                            <Paper sx={{ p: 1.5, bgcolor: 'grey.50' }}>
-                              <Typography variant="caption" color="text.secondary">
-                                {key.charAt(0).toUpperCase() + key.slice(1)}
-                              </Typography>
-                              <Typography variant="body2">{value}</Typography>
-                            </Paper>
-                          </Box>
-                        ))}
-                      </Box>
+                      <Typography variant="h6" gutterBottom>
+                        <TimelineIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                        Impact Assessment
+                      </Typography>
+                      <Paper sx={{ p: 2, backgroundColor: 'action.hover' }}>
+                        <Stack spacing={2}>
+                          <Typography variant="body2">
+                            <strong>Severity Score:</strong> {selectedEvent.analysis.impactAssessment.severity || 0}/10
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>Impact Radius:</strong> {selectedEvent.analysis.impactAssessment.radiusKm} km ({selectedEvent.analysis.impactAssessment.radiusCategory})
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>Estimated Affected Population:</strong> {selectedEvent.analysis.impactAssessment.estimatedAffectedPopulation?.toLocaleString() || 'N/A'}
+                          </Typography>
+                          {selectedEvent.analysis.impactAssessment.sectors && (
+                            <Box>
+                              <Typography variant="body2" gutterBottom><strong>Affected Sectors:</strong></Typography>
+                              <Stack direction="row" spacing={1} flexWrap="wrap">
+                                {selectedEvent.analysis.impactAssessment.sectors.map((sector, idx) => (
+                                  <Chip key={idx} label={sector} size="small" color="primary" variant="outlined" />
+                                ))}
+                              </Stack>
+                            </Box>
+                          )}
+                        </Stack>
+                      </Paper>
                     </Box>
                   )}
                 </Stack>
-                </Box>
-              </Box>
-
-              {selectedEvent.metadata && (
-                <Box>
-                  <Divider />
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Source: {selectedEvent.metadata.articleCount} articles | API Reference: {selectedEvent.metadata.newsApiUri}
-                    </Typography>
-                  </Box>
-                </Box>
               )}
-            </Stack>
+
+              {/* Metadata Tab */}
+              {tabValue === 4 && (
+                <Stack spacing={3}>
+                  {selectedEvent.processHistory && (
+                    <Box>
+                      <Typography variant="h6" gutterBottom>Process History</Typography>
+                      <Stack spacing={1}>
+                        <Typography variant="body2">
+                          <strong>Collected:</strong> {formatDate(selectedEvent.processHistory.collectedAt)}
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>Analyzed:</strong> {formatDate(selectedEvent.processHistory.analyzedAt)}
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>Verified:</strong> {formatDate(selectedEvent.processHistory.verifiedAt)}
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  )}
+
+                  {selectedEvent.originalMetadata && (
+                    <Box>
+                      <Typography variant="h6" gutterBottom>Source Information</Typography>
+                      <Stack spacing={1}>
+                        <Typography variant="body2">
+                          <strong>Article Count:</strong> {selectedEvent.originalMetadata.articleCount}
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>News API URI:</strong> {selectedEvent.originalMetadata.newsApiUri}
+                        </Typography>
+                        <Typography variant="body2">
+                          <strong>Is Duplicate:</strong> {selectedEvent.originalMetadata.isDuplicate ? 'Yes' : 'No'}
+                        </Typography>
+                      </Stack>
+                    </Box>
+                  )}
+
+                  {selectedEvent.tags && selectedEvent.tags.length > 0 && (
+                    <Box>
+                      <Typography variant="h6" gutterBottom>Tags</Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                        {selectedEvent.tags.map((tag, idx) => (
+                          <Chip key={idx} label={tag} size="small" />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+
+                  {selectedEvent.version && (
+                    <Box>
+                      <Typography variant="body2">
+                        <strong>Document Version:</strong> {selectedEvent.version}
+                      </Typography>
+                    </Box>
+                  )}
+                </Stack>
+              )}
+            </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setViewDialog(false)}>Close</Button>
+          <Button onClick={() => setViewDialog(false)} variant="contained">Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Quick Actions */}
+      <QuickActions actions={quickActionHandlers} />
     </Box>
   );
 }

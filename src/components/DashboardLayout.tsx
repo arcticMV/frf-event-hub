@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { useThemeMode } from '@/components/ThemeProvider';
 import { db } from '@/lib/firebase/client';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import {
@@ -44,6 +45,8 @@ import {
   Psychology as PsychologyIcon,
   Inbox as InboxIcon,
   CheckCircle as VerifiedIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 
@@ -60,7 +63,6 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })<{
     duration: theme.transitions.duration.leavingScreen,
   }),
   marginLeft: 0,
-  backgroundColor: '#f8f9fa',
   minHeight: '100vh',
   [theme.breakpoints.down('md')]: {
     padding: theme.spacing(2),
@@ -88,7 +90,7 @@ const DrawerHeader = styled('div')(({ theme }) => ({
 const StyledAppBar = styled(AppBar, {
   shouldForwardProp: (prop) => prop !== 'open',
 })<{ open?: boolean }>(({ theme, open }) => ({
-  backgroundColor: '#ffffff',
+  backgroundColor: theme.palette.background.paper,
   color: theme.palette.text.primary,
   boxShadow: 'none',
   borderBottom: '1px solid rgba(0,0,0,0.08)',
@@ -123,6 +125,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { darkMode, toggleDarkMode } = useThemeMode();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -319,6 +322,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {menuItems.find(item => item.path === pathname)?.text || 'Dashboard'}
           </Typography>
+
+          <IconButton
+            color="inherit"
+            onClick={toggleDarkMode}
+            sx={{ mr: 1 }}
+            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
+          </IconButton>
 
           <IconButton
             color="inherit"

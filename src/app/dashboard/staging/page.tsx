@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import {
   Box,
   Typography,
@@ -20,10 +21,11 @@ import {
   Stack,
   Alert,
   Tooltip,
-  Skeleton,
   Fade,
   Grow,
-  Fab,
+  Zoom,
+  InputAdornment,
+  Divider,
 } from '@mui/material';
 import {
   DataGrid,
@@ -39,6 +41,10 @@ import {
   Refresh as RefreshIcon,
   Visibility as ViewIcon,
   Add as AddIcon,
+  Search as SearchIcon,
+  Download as DownloadIcon,
+  FilterList as FilterIcon,
+  Inbox as InboxIcon,
 } from '@mui/icons-material';
 import { db } from '@/lib/firebase/client';
 import {
@@ -50,9 +56,15 @@ import {
   deleteDoc,
   serverTimestamp,
   Timestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+import GlassCard from '@/components/GlassCard';
+import LoadingSkeleton from '@/components/LoadingSkeleton';
+import EmptyState from '@/components/EmptyState';
+import QuickActions from '@/components/QuickActions';
+import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 
 interface EventData {
   title: string;
@@ -84,10 +96,21 @@ interface StagingEvent {
   reviewNotes?: string;
 }
 
-const CATEGORIES = ['political', 'health', 'economic', 'environmental', 'security', 'social', 'technological', 'unknown'];
+const CATEGORIES = [
+  'Cyber security',
+  'Physical threats & violence',
+  'Natural disasters',
+  'Infrastructure & utilities',
+  'Civil unrest & demonstrations',
+  'Health & disease',
+  'Transportation',
+  'Environmental & industrial',
+  'Political',
+  'Economic'
+];
 const SEVERITIES = ['critical', 'high', 'medium', 'low'];
 
-export default function StagingEventsPage() {
+export default function EnhancedStagingEventsPage() {
   const { user } = useAuth();
   const [events, setEvents] = useState<StagingEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,22 +119,26 @@ export default function StagingEventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<StagingEvent | null>(null);
   const [editedEvent, setEditedEvent] = useState<EventData | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterSeverity, setFilterSeverity] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
 
   const fetchEvents = async () => {
     try {
       setLoading(true);
       const q = query(collection(db, 'staging_events'));
-      const snapshot = await getDocs(q);
+      const querySnapshot = await getDocs(q);
 
       const fetchedEvents: StagingEvent[] = [];
-      snapshot.forEach((doc) => {
+      querySnapshot.forEach((doc) => {
         fetchedEvents.push({
           id: doc.id,
-          ...doc.data(),
+          ...doc.data()
         } as StagingEvent);
       });
 
       setEvents(fetchedEvents);
+      toast.success(`Loaded ${fetchedEvents.length} events`);
     } catch (error) {
       console.error('Error fetching events:', error);
       toast.error('Failed to fetch events');
@@ -120,68 +147,64 @@ export default function StagingEventsPage() {
     }
   };
 
+  // Set up real-time listener
   useEffect(() => {
-    fetchEvents();
+    const unsubscribe = onSnapshot(collection(db, 'staging_events'), (snapshot) => {
+      const fetchedEvents: StagingEvent[] = [];
+      snapshot.forEach((doc) => {
+        fetchedEvents.push({
+          id: doc.id,
+          ...doc.data()
+        } as StagingEvent);
+      });
+      setEvents(fetchedEvents);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error listening to events:', error);
+      toast.error('Failed to connect to real-time updates');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const handleView = (event: StagingEvent) => {
-    setSelectedEvent(event);
-    setViewDialog(true);
-  };
-
-  const handleEdit = (event: StagingEvent) => {
-    setSelectedEvent(event);
-    setEditedEvent({ ...event.event });
-    setReviewNotes(event.reviewNotes || '');
-    setEditDialog(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!selectedEvent || !editedEvent) return;
-
+  const handleApprove = async (event: StagingEvent) => {
     try {
-      const eventRef = doc(db, 'staging_events', selectedEvent.id);
-      await updateDoc(eventRef, {
-        event: editedEvent,
+      await updateDoc(doc(db, 'staging_events', event.id), {
+        reviewStatus: 'approved',
+        reviewedBy: user?.email,
+        reviewedAt: serverTimestamp(),
         reviewNotes: reviewNotes,
       });
-
-      toast.success('Event updated successfully');
+      toast.success('Event approved successfully');
       fetchEvents();
-      setEditDialog(false);
-      setSelectedEvent(null);
-      setEditedEvent(null);
-      setReviewNotes('');
     } catch (error) {
-      console.error('Error updating event:', error);
-      toast.error('Failed to update event');
+      console.error('Error approving event:', error);
+      toast.error('Failed to approve event');
     }
   };
 
-  const handleStatusUpdate = async (eventId: string, status: 'approved' | 'rejected') => {
-    if (!user) return;
-
+  const handleReject = async (event: StagingEvent) => {
     try {
-      const eventRef = doc(db, 'staging_events', eventId);
-      await updateDoc(eventRef, {
-        reviewStatus: status,
-        reviewedBy: user.email,
+      await updateDoc(doc(db, 'staging_events', event.id), {
+        reviewStatus: 'rejected',
+        reviewedBy: user?.email,
         reviewedAt: serverTimestamp(),
+        reviewNotes: reviewNotes,
       });
-
-      toast.success(`Event ${status} successfully`);
+      toast.success('Event rejected');
       fetchEvents();
     } catch (error) {
-      console.error(`Error ${status} event:`, error);
-      toast.error(`Failed to ${status} event`);
+      console.error('Error rejecting event:', error);
+      toast.error('Failed to reject event');
     }
   };
 
-  const handleDelete = async (eventId: string) => {
-    if (confirm('Are you sure you want to delete this event?')) {
+  const handleDelete = async (event: StagingEvent) => {
+    if (window.confirm('Are you sure you want to delete this event?')) {
       try {
-        await deleteDoc(doc(db, 'staging_events', eventId));
-        toast.success('Event deleted successfully');
+        await deleteDoc(doc(db, 'staging_events', event.id));
+        toast.success('Event deleted');
         fetchEvents();
       } catch (error) {
         console.error('Error deleting event:', error);
@@ -190,264 +213,446 @@ export default function StagingEventsPage() {
     }
   };
 
-  const formatDate = (timestamp: Timestamp | undefined | null) => {
+  const handleEdit = async () => {
+    if (!selectedEvent || !editedEvent) return;
+
+    try {
+      await updateDoc(doc(db, 'staging_events', selectedEvent.id), {
+        event: editedEvent,
+      });
+      toast.success('Event updated successfully');
+      setEditDialog(false);
+      fetchEvents();
+    } catch (error) {
+      console.error('Error updating event:', error);
+      toast.error('Failed to update event');
+    }
+  };
+
+  const handleEditAndApprove = async () => {
+    if (!selectedEvent || !editedEvent) return;
+
+    try {
+      await updateDoc(doc(db, 'staging_events', selectedEvent.id), {
+        event: editedEvent,
+        reviewStatus: 'approved',
+        reviewedBy: user?.email,
+        reviewedAt: serverTimestamp(),
+        reviewNotes: reviewNotes,
+      });
+      toast.success('Event updated and approved successfully');
+      setEditDialog(false);
+      fetchEvents();
+    } catch (error) {
+      console.error('Error updating and approving event:', error);
+      toast.error('Failed to update and approve event');
+    }
+  };
+
+  // Filter events based on search term and filters
+  const filteredEvents = events.filter(event => {
+    const matchesSearch = searchTerm === '' ||
+      event.event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      event.event.summary.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (event.event.location.country?.eng?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
+
+    const matchesSeverity = filterSeverity === 'all' || event.event.severity === filterSeverity;
+    const matchesStatus = filterStatus === 'all' || event.reviewStatus === filterStatus;
+
+    return matchesSearch && matchesSeverity && matchesStatus;
+  });
+
+  const formatDate = (timestamp: any) => {
     if (!timestamp) return 'N/A';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
-    // Handle Firestore Timestamp object
-    if (timestamp && typeof timestamp === 'object' && '_seconds' in timestamp) {
-      return new Date((timestamp as any)._seconds * 1000).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+  const getSeverityColor = (severity: string): "error" | "warning" | "info" | "success" | "default" => {
+    switch (severity) {
+      case 'critical': return 'error';
+      case 'high': return 'warning';
+      case 'medium': return 'info';
+      case 'low': return 'success';
+      default: return 'default';
     }
-
-    // Handle if it's already a Date object
-    if (timestamp instanceof Date) {
-      return timestamp.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    }
-
-    return 'N/A';
   };
 
   const columns: GridColDef[] = [
     {
       field: 'eventId',
       headerName: 'Event ID',
-      width: 110,
-      minWidth: 100,
+      width: 120,
+      renderCell: (params) => (
+        <Tooltip title={params.value}>
+          <Typography variant="body2" noWrap>{params.value}</Typography>
+        </Tooltip>
+      )
     },
     {
       field: 'title',
       headerName: 'Title',
       flex: 2,
       minWidth: 200,
-      valueGetter: (params: any) => params?.row?.event?.title || 'N/A',
+      valueGetter: (value, row) => row.event?.title || 'N/A',
+      renderCell: (params) => (
+        <Tooltip title={params.value}>
+          <Typography variant="body2" noWrap>{params.value}</Typography>
+        </Tooltip>
+      )
     },
     {
       field: 'category',
       headerName: 'Category',
-      width: 110,
-      minWidth: 90,
-      valueGetter: (params: any) => params?.row?.event?.category || 'unknown',
-      renderCell: (params: GridRenderCellParams) => (
-        <Chip label={params.value || 'unknown'} size="small" variant="outlined" />
-      ),
+      width: 120,
+      valueGetter: (value, row) => row.event?.category || 'unknown',
+      renderCell: (params) => (
+        <Chip label={params.value} size="small" variant="outlined" />
+      )
     },
     {
       field: 'severity',
       headerName: 'Severity',
-      width: 90,
-      minWidth: 80,
-      valueGetter: (params: any) => params?.row?.event?.severity || 'unknown',
-      renderCell: (params: GridRenderCellParams) => {
-        const value = params.value || 'unknown';
-        const color = value === 'critical' ? 'error' :
-                      value === 'high' ? 'warning' :
-                      value === 'medium' ? 'info' : 'success';
-        return <Chip label={value} size="small" color={color as any} />;
-      },
+      width: 100,
+      valueGetter: (value, row) => row.event?.severity || 'unknown',
+      renderCell: (params) => (
+        <Chip
+          label={params.value}
+          size="small"
+          color={getSeverityColor(params.value)}
+        />
+      )
     },
     {
       field: 'location',
       headerName: 'Location',
-      flex: 1,
-      minWidth: 100,
-      valueGetter: (params: any) => params?.row?.event?.location?.country?.eng || 'Unknown',
+      flex: 1.5,
+      minWidth: 150,
+      valueGetter: (value, row) => row.event?.location?.country?.eng || 'Unknown',
     },
     {
       field: 'articleCount',
       headerName: 'Articles',
-      width: 70,
-      minWidth: 60,
-      valueGetter: (params: any) => params?.row?.metadata?.articleCount || 0,
-      type: 'number',
+      width: 80,
+      align: 'center',
+      valueGetter: (value, row) => row.metadata?.articleCount || 0,
     },
     {
       field: 'reviewStatus',
       headerName: 'Status',
-      width: 100,
-      minWidth: 90,
+      width: 120,
       renderCell: (params: GridRenderCellParams) => {
-        const value = params?.value || 'unknown';
-        const color = value === 'pending' ? 'warning' :
-                      value === 'approved' ? 'success' :
-                      value === 'rejected' ? 'error' : 'default';
-        return <Chip label={value} size="small" color={color as any} />;
-      },
+        const color = params.value === 'pending' ? 'warning' :
+                     params.value === 'approved' ? 'success' : 'error';
+        return <Chip label={params.value} size="small" color={color} />;
+      }
     },
     {
       field: 'collectedAt',
-      headerName: 'Collected',
-      width: 110,
-      minWidth: 100,
-      valueGetter: (params: any) => formatDate(params?.row?.collectedAt),
+      headerName: 'Collected Date',
+      width: 180,
+      valueGetter: (value, row) => formatDate(row.collectedAt),
     },
     {
       field: 'actions',
-      type: 'actions',
       headerName: 'Actions',
-      width: 120,
-      minWidth: 100,
+      type: 'actions',
+      width: 150,
       getActions: (params) => {
-        if (!params?.row) return [];
-
-        const actions = [
+        const event = params.row as StagingEvent;
+        return [
           <GridActionsCellItem
             key="view"
             icon={<ViewIcon />}
             label="View"
-            onClick={() => handleView(params.row)}
+            onClick={() => {
+              setSelectedEvent(event);
+              setViewDialog(true);
+            }}
           />,
           <GridActionsCellItem
             key="edit"
             icon={<EditIcon />}
             label="Edit"
-            onClick={() => handleEdit(params.row)}
+            onClick={() => {
+              setSelectedEvent(event);
+              setEditedEvent({
+                ...event.event,
+                location: {
+                  ...event.event.location,
+                  text: event.event.location?.text || { eng: '' },
+                  country: event.event.location?.country || { eng: '' },
+                  needsGeocoding: event.event.location?.needsGeocoding || false
+                }
+              });
+              setEditDialog(true);
+            }}
           />,
-        ];
-
-        if (params.row?.reviewStatus === 'pending') {
-          actions.push(
-            <GridActionsCellItem
-              key="approve"
-              icon={<ApproveIcon />}
-              label="Approve"
-              onClick={() => handleStatusUpdate(params.row.id, 'approved')}
-              showInMenu
-            />,
-            <GridActionsCellItem
-              key="reject"
-              icon={<RejectIcon />}
-              label="Reject"
-              onClick={() => handleStatusUpdate(params.row.id, 'rejected')}
-              showInMenu
-            />
-          );
-        }
-
-        actions.push(
+          <GridActionsCellItem
+            key="approve"
+            icon={<ApproveIcon />}
+            label="Approve"
+            onClick={() => handleApprove(event)}
+            disabled={event.reviewStatus !== 'pending'}
+            showInMenu={false}
+          />,
+          <GridActionsCellItem
+            key="reject"
+            icon={<RejectIcon />}
+            label="Reject"
+            onClick={() => handleReject(event)}
+            disabled={event.reviewStatus !== 'pending'}
+            showInMenu
+          />,
           <GridActionsCellItem
             key="delete"
             icon={<DeleteIcon />}
             label="Delete"
-            onClick={() => handleDelete(params.row?.id)}
+            onClick={() => handleDelete(event)}
             showInMenu
-          />
-        );
+          />,
+        ];
+      }
+    }
+  ];
 
-        return actions;
-      },
+  // Quick Actions
+  const quickActionHandlers = [
+    {
+      icon: <AddIcon />,
+      name: 'Add Event',
+      onClick: () => toast('Add event feature coming soon!'),
+      color: 'primary' as const,
+    },
+    {
+      icon: <RefreshIcon />,
+      name: 'Refresh',
+      onClick: () => fetchEvents(),
+      color: 'info' as const,
+    },
+    {
+      icon: <DownloadIcon />,
+      name: 'Export',
+      onClick: () => toast('Export feature coming soon!'),
+      color: 'success' as const,
     },
   ];
 
-  return (
-    <Fade in timeout={300}>
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Staging Events Management
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Review, edit, and approve incoming events
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<RefreshIcon />}
-          onClick={fetchEvents}
-        >
-          Refresh
-        </Button>
-      </Box>
+  if (loading) {
+    return <LoadingSkeleton variant="table" rows={10} />;
+  }
 
-      {/* Statistics Bar */}
+  if (events.length === 0 && !loading) {
+    return (
+      <>
+        <EmptyState
+          title="No Staging Events"
+          description="There are no events in the staging area. Events will appear here when collected from sources."
+          icon={<InboxIcon />}
+          actionLabel="Refresh"
+          onAction={() => fetchEvents()}
+          height="60vh"
+        />
+        <QuickActions actions={quickActionHandlers} />
+      </>
+    );
+  }
+
+  return (
+    <Box>
+      {/* Header Section */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box>
+            <Typography variant="h4" fontWeight="bold">
+              Staging Events Management
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Review, edit, and approve incoming events
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<RefreshIcon />}
+            onClick={fetchEvents}
+            sx={{
+              background: 'linear-gradient(135deg, #FFA726 0%, #FB8C00 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #FB8C00 0%, #FFA726 100%)',
+              },
+            }}
+          >
+            Refresh
+          </Button>
+        </Box>
+      </motion.div>
+
+      {/* Search and Filters with Progressive Disclosure */}
+      <ProgressiveDisclosure
+        title="Show Filters"
+        variant="inline"
+        basicContent={
+          <TextField
+            fullWidth
+            placeholder="Search events by title, summary, or location..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 3 }}
+          />
+        }
+        advancedContent={
+          <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+            <FormControl sx={{ minWidth: 150 }}>
+              <InputLabel>Severity</InputLabel>
+              <Select
+                value={filterSeverity}
+                onChange={(e) => setFilterSeverity(e.target.value)}
+                label="Severity"
+                size="small"
+              >
+                <MenuItem value="all">All</MenuItem>
+                {SEVERITIES.map(severity => (
+                  <MenuItem key={severity} value={severity}>{severity}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl sx={{ minWidth: 150 }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                label="Status"
+                size="small"
+              >
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="approved">Approved</MenuItem>
+                <MenuItem value="rejected">Rejected</MenuItem>
+              </Select>
+            </FormControl>
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setFilterSeverity('all');
+                setFilterStatus('all');
+                setSearchTerm('');
+              }}
+            >
+              Clear Filters
+            </Button>
+          </Stack>
+        }
+      />
+
+      {/* Statistics Cards */}
       <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-        {loading ? (
-          [...Array(5)].map((_, i) => (
-            <Paper key={i} sx={{ p: 2, flex: 1 }}>
-              <Skeleton variant="text" width="60%" height={32} />
-              <Skeleton variant="text" width="80%" />
-            </Paper>
-          ))
-        ) : (
-          <>
-            <Grow in timeout={400}>
-              <Paper sx={{ p: 2, flex: 1, transition: 'all 0.3s', cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
-                <Typography variant="h6">{events.length}</Typography>
-                <Typography variant="body2" color="text.secondary">Total Events</Typography>
-              </Paper>
-            </Grow>
-            <Grow in timeout={500}>
-              <Paper sx={{ p: 2, flex: 1, transition: 'all 0.3s', cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
-                <Typography variant="h6" color="warning.main">
-                  {events.filter(e => e.reviewStatus === 'pending').length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">Pending Review</Typography>
-              </Paper>
-            </Grow>
-            <Grow in timeout={600}>
-              <Paper sx={{ p: 2, flex: 1, transition: 'all 0.3s', cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
-                <Typography variant="h6" color="success.main">
-                  {events.filter(e => e.reviewStatus === 'approved').length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">Approved</Typography>
-              </Paper>
-            </Grow>
-            <Grow in timeout={700}>
-              <Paper sx={{ p: 2, flex: 1, transition: 'all 0.3s', cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
-                <Typography variant="h6" color="error.main">
-                  {events.filter(e => e.reviewStatus === 'rejected').length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">Rejected</Typography>
-              </Paper>
-            </Grow>
-            <Grow in timeout={800}>
-              <Paper sx={{ p: 2, flex: 1, transition: 'all 0.3s', cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)', boxShadow: 2 } }}>
-                <Typography variant="h6" color="error.main">
-                  {events.filter(e => e.event?.severity === 'critical').length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">Critical Events</Typography>
-              </Paper>
-            </Grow>
-          </>
-        )}
+        <Zoom in timeout={300}>
+          <GlassCard sx={{ flex: 1 }}>
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h5" fontWeight="bold">{filteredEvents.length}</Typography>
+              <Typography variant="body2" color="text.secondary">Total Events</Typography>
+            </Box>
+          </GlassCard>
+        </Zoom>
+        <Zoom in timeout={400}>
+          <GlassCard sx={{ flex: 1 }}>
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h5" fontWeight="bold" color="warning.main">
+                {filteredEvents.filter(e => e.reviewStatus === 'pending').length}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">Pending Review</Typography>
+            </Box>
+          </GlassCard>
+        </Zoom>
+        <Zoom in timeout={500}>
+          <GlassCard sx={{ flex: 1 }}>
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h5" fontWeight="bold" color="success.main">
+                {filteredEvents.filter(e => e.reviewStatus === 'approved').length}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">Approved</Typography>
+            </Box>
+          </GlassCard>
+        </Zoom>
+        <Zoom in timeout={600}>
+          <GlassCard sx={{ flex: 1 }}>
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h5" fontWeight="bold" color="error.main">
+                {filteredEvents.filter(e => e.event?.severity === 'critical').length}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">Critical Events</Typography>
+            </Box>
+          </GlassCard>
+        </Zoom>
       </Stack>
 
       {/* Data Table */}
-      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <Box sx={{ height: 600, width: '100%' }}>
-          <DataGrid
-            rows={events}
-            columns={columns}
-            loading={loading}
-            pageSizeOptions={[10, 25, 50, 100]}
-            initialState={{
-              pagination: {
-                paginationModel: { page: 0, pageSize: 25 },
-              },
-              sorting: {
-                sortModel: [{ field: 'collectedAt', sort: 'desc' }],
-              },
-            }}
-            checkboxSelection
-            disableRowSelectionOnClick
-            sx={{
-              '& .MuiDataGrid-cell': {
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              },
-            }}
-          />
-        </Box>
-      </Paper>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
+        <Paper
+          sx={{
+            width: '100%',
+            overflow: 'hidden',
+            background: 'transparent',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid',
+            borderColor: 'divider',
+          }}
+        >
+          <Box sx={{ height: 600, width: '100%' }}>
+            <DataGrid
+              rows={filteredEvents}
+              columns={columns}
+              loading={loading}
+              pageSizeOptions={[10, 25, 50, 100]}
+              initialState={{
+                pagination: {
+                  paginationModel: { page: 0, pageSize: 25 },
+                },
+                sorting: {
+                  sortModel: [{ field: 'collectedAt', sort: 'desc' }],
+                },
+              }}
+              checkboxSelection
+              disableRowSelectionOnClick
+              sx={{
+                border: 'none',
+                '& .MuiDataGrid-cell': {
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                },
+                '& .MuiDataGrid-row': {
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                    transform: 'scale(1.001)',
+                  },
+                },
+              }}
+            />
+          </Box>
+        </Paper>
+      </motion.div>
 
       {/* View Dialog */}
       <Dialog open={viewDialog} onClose={() => setViewDialog(false)} maxWidth="md" fullWidth>
@@ -470,7 +675,8 @@ export default function StagingEventsPage() {
               <Box>
                 <Typography variant="subtitle2" color="text.secondary">Location</Typography>
                 <Typography variant="body1">
-                  {selectedEvent.event.location.text.eng}, {selectedEvent.event.location.country.eng}
+                  {selectedEvent.event.location.text.eng}
+                  {selectedEvent.event.location.country?.eng && `, ${selectedEvent.event.location.country.eng}`}
                 </Typography>
               </Box>
               <Box>
@@ -501,28 +707,28 @@ export default function StagingEventsPage() {
       <Dialog open={editDialog} onClose={() => setEditDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>Edit Event</DialogTitle>
         <DialogContent>
-          <Stack spacing={3} sx={{ mt: 2 }}>
-            <TextField
-              fullWidth
-              label="Title"
-              value={editedEvent?.title || ''}
-              onChange={(e) => setEditedEvent(prev => prev ? { ...prev, title: e.target.value } : null)}
-            />
-            <TextField
-              fullWidth
-              multiline
-              rows={4}
-              label="Summary"
-              value={editedEvent?.summary || ''}
-              onChange={(e) => setEditedEvent(prev => prev ? { ...prev, summary: e.target.value } : null)}
-            />
-            <Stack direction="row" spacing={2}>
+          {editedEvent && (
+            <Stack spacing={2} sx={{ mt: 2 }}>
+              <TextField
+                fullWidth
+                label="Title"
+                value={editedEvent.title}
+                onChange={(e) => setEditedEvent({ ...editedEvent, title: e.target.value })}
+              />
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="Summary"
+                value={editedEvent.summary}
+                onChange={(e) => setEditedEvent({ ...editedEvent, summary: e.target.value })}
+              />
               <FormControl fullWidth>
                 <InputLabel>Category</InputLabel>
                 <Select
-                  value={editedEvent?.category || 'unknown'}
+                  value={editedEvent.category}
+                  onChange={(e) => setEditedEvent({ ...editedEvent, category: e.target.value })}
                   label="Category"
-                  onChange={(e) => setEditedEvent(prev => prev ? { ...prev, category: e.target.value } : null)}
                 >
                   {CATEGORIES.map(cat => (
                     <MenuItem key={cat} value={cat}>{cat}</MenuItem>
@@ -532,98 +738,68 @@ export default function StagingEventsPage() {
               <FormControl fullWidth>
                 <InputLabel>Severity</InputLabel>
                 <Select
-                  value={editedEvent?.severity || 'low'}
+                  value={editedEvent.severity}
+                  onChange={(e) => setEditedEvent({ ...editedEvent, severity: e.target.value })}
                   label="Severity"
-                  onChange={(e) => setEditedEvent(prev => prev ? { ...prev, severity: e.target.value } : null)}
                 >
                   {SEVERITIES.map(sev => (
                     <MenuItem key={sev} value={sev}>{sev}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
-            </Stack>
-            <Stack direction="row" spacing={2}>
+              <Divider sx={{ my: 2 }}>Location</Divider>
               <TextField
                 fullWidth
-                label="Location"
-                value={editedEvent?.location.text.eng || ''}
-                onChange={(e) => setEditedEvent(prev => prev ? {
-                  ...prev,
-                  location: { ...prev.location, text: { eng: e.target.value } }
-                } : null)}
+                label="Location Text"
+                value={editedEvent.location?.text?.eng || ''}
+                onChange={(e) => setEditedEvent({
+                  ...editedEvent,
+                  location: {
+                    ...editedEvent.location,
+                    text: { eng: e.target.value }
+                  }
+                })}
               />
               <TextField
                 fullWidth
                 label="Country"
-                value={editedEvent?.location.country.eng || ''}
-                onChange={(e) => setEditedEvent(prev => prev ? {
-                  ...prev,
-                  location: { ...prev.location, country: { eng: e.target.value } }
-                } : null)}
+                value={editedEvent.location?.country?.eng || ''}
+                onChange={(e) => setEditedEvent({
+                  ...editedEvent,
+                  location: {
+                    ...editedEvent.location,
+                    country: { eng: e.target.value }
+                  }
+                })}
+              />
+              <TextField
+                fullWidth
+                label="Review Notes"
+                value={reviewNotes}
+                onChange={(e) => setReviewNotes(e.target.value)}
+                multiline
+                rows={2}
+                placeholder="Add notes about your review..."
               />
             </Stack>
-            <TextField
-              fullWidth
-              multiline
-              rows={2}
-              label="Review Notes"
-              value={reviewNotes}
-              onChange={(e) => setReviewNotes(e.target.value)}
-            />
-          </Stack>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialog(false)}>Cancel</Button>
-          <Button onClick={handleSaveEdit} variant="contained">Save Changes</Button>
-          {selectedEvent?.reviewStatus === 'pending' && (
-            <>
-              <Button
-                onClick={() => {
-                  handleSaveEdit();
-                  handleStatusUpdate(selectedEvent.id, 'approved');
-                }}
-                variant="contained"
-                color="success"
-              >
-                Save & Approve
-              </Button>
-              <Button
-                onClick={() => {
-                  handleSaveEdit();
-                  handleStatusUpdate(selectedEvent.id, 'rejected');
-                }}
-                variant="contained"
-                color="error"
-              >
-                Save & Reject
-              </Button>
-            </>
-          )}
+          <Button variant="outlined" onClick={handleEdit}>Save Changes</Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleEditAndApprove}
+            startIcon={<ApproveIcon />}
+          >
+            Save Changes and Approve
+          </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Floating Action Button */}
-      <Fab
-        color="primary"
-        aria-label="add"
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          background: 'linear-gradient(45deg, #6366F1 30%, #8B5CF6 90%)',
-          boxShadow: '0 3px 5px 2px rgba(99, 102, 241, .3)',
-          '&:hover': {
-            background: 'linear-gradient(45deg, #4F46E5 30%, #7C3AED 90%)',
-          },
-        }}
-        onClick={() => {
-          // Add new event functionality
-          toast.success('Add new event functionality coming soon!');
-        }}
-      >
-        <AddIcon />
-      </Fab>
+      {/* Quick Actions SpeedDial */}
+      <QuickActions actions={quickActionHandlers} />
     </Box>
-    </Fade>
   );
 }

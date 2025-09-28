@@ -34,11 +34,14 @@
     "dotenv": "^17.2.2",
     "firebase": "^12.3.0",
     "firebase-admin": "^13.5.0",
+    "framer-motion": "^12.23.22",
     "lucide-react": "^0.544.0",
     "next": "^15.5.4",
+    "notistack": "^3.0.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-hot-toast": "^2.6.0",
+    "recharts": "^3.2.1",
     "yaml": "^2.8.1"
   },
   "devDependencies": {
