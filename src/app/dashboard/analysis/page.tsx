@@ -791,6 +791,20 @@ export default function EnhancedAnalysisQueuePage() {
           >
             Edit Analysis
           </Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => {
+              if (selectedEvent) {
+                setViewDialog(false);
+                setVerifyDialog(true);
+              }
+            }}
+            startIcon={<VerifyIcon />}
+            disabled={selectedEvent?.verificationStatus === 'verified'}
+          >
+            Verify
+          </Button>
         </DialogActions>
       </Dialog>
 
