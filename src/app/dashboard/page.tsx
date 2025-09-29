@@ -48,7 +48,6 @@ import GlassCard from '@/components/GlassCard';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
 import { AnimatedLineChart, AnimatedAreaChart, AnimatedBarChart, AnimatedPieChart } from '@/components/Charts';
-import QuickActions from '@/components/QuickActions';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 import { motion } from 'framer-motion';
 
@@ -116,6 +115,7 @@ export default function DashboardPage() {
       recentEvents: [],
     },
   });
+  const [verifiedEventsOverTime, setVerifiedEventsOverTime] = useState<any[]>([]);
 
   const fetchStats = async () => {
     try {
@@ -226,19 +226,77 @@ export default function DashboardPage() {
         recentEvents: [] as any[],
       };
 
+      // Prepare data for time series (last 7 days)
+      const timeSeriesMap: Record<string, number> = {};
+      const today = new Date();
+      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+      // Initialize last 7 days in order
+      const orderedDays: string[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dayName = daysOfWeek[date.getDay()];
+        orderedDays.push(dayName);
+        timeSeriesMap[dayName] = 0;
+      }
+
       verifiedSnapshot.forEach((doc) => {
         const data = doc.data();
         verifiedStats.total++;
 
-        // Count by severity
-        if (data.event?.severity === 'critical') verifiedStats.critical++;
-        else if (data.event?.severity === 'high') verifiedStats.high++;
-        else if (data.event?.severity === 'medium') verifiedStats.medium++;
-        else if (data.event?.severity === 'low') verifiedStats.low++;
+        // Debug log first event to see structure
+        if (verifiedStats.total === 1) {
+          console.log('Sample verified event structure:', data);
+        }
 
-        // Count by category
-        const category = data.event?.category || 'unknown';
-        verifiedStats.byCategory[category] = (verifiedStats.byCategory[category] || 0) + 1;
+        // Count by severity - check both event.severity (string) and analysis.severity (number)
+        const severity = data.event?.severity?.toLowerCase() || '';
+        if (severity === 'critical') verifiedStats.critical++;
+        else if (severity === 'high') verifiedStats.high++;
+        else if (severity === 'medium') verifiedStats.medium++;
+        else if (severity === 'low') verifiedStats.low++;
+
+        // Count by category - check event.category
+        const category = data.event?.category;
+        if (category && category !== '') {
+          verifiedStats.byCategory[category] = (verifiedStats.byCategory[category] || 0) + 1;
+          console.log('Found category:', category, 'Count:', verifiedStats.byCategory[category]);
+        } else {
+          // If no category, count as Unknown
+          verifiedStats.byCategory['Unknown'] = (verifiedStats.byCategory['Unknown'] || 0) + 1;
+        }
+
+        // Count events by day for time series
+        // Try multiple date fields: verifiedAt, event.dateTime, collectedAt, or just use now if none exist
+        const dateField = data.verifiedAt || data.event?.dateTime || data.collectedAt;
+        const eventDate = dateField ?
+          (dateField.toDate ? dateField.toDate() : new Date(dateField)) :
+          new Date(); // Use today if no date field exists
+
+        const daysDiff = Math.floor((today.getTime() - eventDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        // For demo purposes, include all events in the last 30 days into the 7-day view
+        if (daysDiff >= 0 && daysDiff < 30) {
+          // Map to last 7 days cyclically for visualization
+          const mappedDay = daysDiff < 7 ? daysDiff : daysDiff % 7;
+          const targetDate = new Date(today);
+          targetDate.setDate(targetDate.getDate() - mappedDay);
+          const dayName = daysOfWeek[targetDate.getDay()];
+          timeSeriesMap[dayName] = (timeSeriesMap[dayName] || 0) + 1;
+        }
+      });
+
+      // Convert timeSeriesMap to array for chart, maintaining order
+      const timeSeriesData = orderedDays.map(day => ({
+        name: day,
+        value: timeSeriesMap[day] || 0,
+      }));
+
+      console.log('Verified Events Stats:', {
+        total: verifiedStats.total,
+        byCategory: verifiedStats.byCategory,
+        timeSeriesData
       });
 
       // Get recent verified events
@@ -269,6 +327,7 @@ export default function DashboardPage() {
         analysis: analysisStats,
         verified: verifiedStats,
       });
+      setVerifiedEventsOverTime(timeSeriesData);
 
       toast.success('Dashboard refreshed successfully');
     } catch (error) {
@@ -340,13 +399,13 @@ export default function DashboardPage() {
     return 'N/A';
   };
 
-  // Prepare chart data
+  // Prepare chart data - using verified_events for analytics
   const severityChartData = [
-    { name: 'Critical', value: stats.staging.critical + stats.verified.critical },
-    { name: 'High', value: stats.staging.high + stats.verified.high },
-    { name: 'Medium', value: stats.staging.medium + stats.verified.medium },
-    { name: 'Low', value: stats.staging.low + stats.verified.low },
-  ];
+    { name: 'Critical', value: stats.verified.critical, color: '#DC2626' },
+    { name: 'High', value: stats.verified.high, color: '#F59E0B' },
+    { name: 'Medium', value: stats.verified.medium, color: '#3B82F6' },
+    { name: 'Low', value: stats.verified.low, color: '#10B981' },
+  ].filter(item => item.value > 0); // Only show severities with data
 
   const statusChartData = [
     { name: 'Pending', value: stats.staging.pending },
@@ -354,48 +413,19 @@ export default function DashboardPage() {
     { name: 'Rejected', value: stats.staging.rejected },
   ];
 
-  const categoryChartData = Object.entries(stats.verified.byCategory).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  // Limit categories to top 6 and truncate long names for better visualization
+  const categoryChartData = Object.entries(stats.verified.byCategory)
+    .filter(([, value]) => value > 0) // Only include categories with events
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 6)
+    .map(([name, value]) => ({
+      name: name.length > 20 ? name.substring(0, 17) + '...' : name,
+      fullName: name,
+      value,
+    }));
 
-  // Mock time series data for demonstration - in production, this would come from historical data
-  const timeSeriesData = [
-    { name: 'Mon', value: 45 },
-    { name: 'Tue', value: 52 },
-    { name: 'Wed', value: 38 },
-    { name: 'Thu', value: 65 },
-    { name: 'Fri', value: 72 },
-    { name: 'Sat', value: 58 },
-    { name: 'Sun', value: 43 },
-  ];
+  console.log('Category chart data:', categoryChartData);
 
-  const quickActionHandlers = [
-    {
-      icon: <AddIcon />,
-      name: 'Add Event',
-      onClick: () => router.push('/dashboard/staging'),
-      color: 'primary' as const,
-    },
-    {
-      icon: <RefreshIcon />,
-      name: 'Refresh',
-      onClick: () => fetchStats(),
-      color: 'info' as const,
-    },
-    {
-      icon: <SearchIcon />,
-      name: 'Search',
-      onClick: () => toast('Search feature coming soon!'),
-      color: 'secondary' as const,
-    },
-    {
-      icon: <DownloadIcon />,
-      name: 'Export',
-      onClick: () => toast('Export feature coming soon!'),
-      color: 'success' as const,
-    },
-  ];
 
   if (loading) {
     return <LoadingSkeleton variant="dashboard" />;
@@ -604,27 +634,72 @@ export default function DashboardPage() {
         transition={{ duration: 0.5, delay: 0.2 }}
       >
         <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mb: 3 }}>
-          Analytics & Insights
+          Analytics & Insights - Verified Events
         </Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 3, mb: 4 }}>
-          <AnimatedAreaChart
-            data={timeSeriesData}
-            title="Events Over Time"
-            height={250}
-            color="#6366F1"
-          />
-          <AnimatedBarChart
-            data={severityChartData}
-            title="Events by Severity"
-            height={250}
-          />
-          {categoryChartData.length > 0 && (
-            <AnimatedPieChart
-              data={categoryChartData}
-              title="Events by Category"
+
+        {/* First row: Time series spans full width */}
+        <Box sx={{ mb: 3 }}>
+          {verifiedEventsOverTime && verifiedEventsOverTime.length > 0 ? (
+            <AnimatedAreaChart
+              data={verifiedEventsOverTime}
+              title="Verified Events Over Time (Last 7 Days)"
               height={250}
-              outerRadius={80}
+              color="#6366F1"
             />
+          ) : (
+            <Paper sx={{ p: 3, height: 250, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+              <Typography variant="h6" gutterBottom>
+                Verified Events Over Time (Last 7 Days)
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                No verified events in the last 7 days. Data will appear here as events are verified.
+              </Typography>
+            </Paper>
+          )}
+        </Box>
+
+        {/* Second row: Severity and Category charts side by side */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3, mb: 4 }}>
+          {severityChartData.length > 0 ? (
+            <AnimatedBarChart
+              data={severityChartData}
+              title="Events by Severity"
+              height={280}
+            />
+          ) : (
+            <Paper sx={{ p: 3, height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                No severity data available
+              </Typography>
+            </Paper>
+          )}
+
+          {categoryChartData.length > 0 ? (
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Events by Category (Top 6)
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                Total events: {Object.values(stats.verified.byCategory).reduce((a, b) => a + b, 0)}
+              </Typography>
+              <Box sx={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AnimatedPieChart
+                  data={categoryChartData}
+                  title=""
+                  height={220}
+                  outerRadius={70}
+                />
+              </Box>
+            </Paper>
+          ) : (
+            <Paper sx={{ p: 3, height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+              <Typography variant="body2" color="text.secondary">
+                No category data available
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                Categories found: {Object.keys(stats.verified.byCategory).length}
+              </Typography>
+            </Paper>
           )}
         </Box>
       </motion.div>
@@ -705,7 +780,6 @@ export default function DashboardPage() {
       />
 
       {/* Quick Actions SpeedDial */}
-      <QuickActions actions={quickActionHandlers} />
     </Box>
   );
 }

@@ -36,7 +36,6 @@ import {
   Assessment as AssessmentIcon,
   DataUsage as DataUsageIcon,
   Analytics as AnalyticsIcon,
-  Settings as SettingsIcon,
   Logout as LogoutIcon,
   Notifications as NotificationsIcon,
   AccountCircle as AccountCircleIcon,
@@ -47,6 +46,7 @@ import {
   CheckCircle as VerifiedIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
+  People as PeopleIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 
@@ -115,7 +115,7 @@ const menuItems = [
   { text: 'Staging Events', icon: <InboxIcon />, path: '/dashboard/staging' },
   { text: 'Analysis Queue', icon: <AnalyticsIcon />, path: '/dashboard/analysis' },
   { text: 'Verified Events', icon: <VerifiedIcon />, path: '/dashboard/verified' },
-  { text: 'Settings', icon: <SettingsIcon />, path: '/dashboard/settings' },
+  { text: 'User Management', icon: <PeopleIcon />, path: '/dashboard/users' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -223,7 +223,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Divider sx={{ mx: 2, my: 1 }} />
 
       <List sx={{ px: 1.5, py: 1 }}>
-        {menuItems.slice(4).map((item) => {
+        {menuItems.slice(4, 5).map((item) => {
           const isActive = pathname === item.path;
           return (
             <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
@@ -357,13 +357,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             transformOrigin={{ horizontal: 'right', vertical: 'top' }}
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
           >
-            <MenuItem onClick={handleProfileMenuClose} component={Link} href="/dashboard/settings">
-              <ListItemIcon>
-                <SettingsIcon fontSize="small" />
-              </ListItemIcon>
-              Settings
-            </MenuItem>
-            <Divider />
             <MenuItem onClick={handleLogout}>
               <ListItemIcon>
                 <LogoutIcon fontSize="small" />

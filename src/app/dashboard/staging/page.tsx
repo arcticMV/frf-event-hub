@@ -54,6 +54,7 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  addDoc,
   serverTimestamp,
   Timestamp,
   onSnapshot,
@@ -63,7 +64,6 @@ import toast from 'react-hot-toast';
 import GlassCard from '@/components/GlassCard';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
-import QuickActions from '@/components/QuickActions';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 
 interface EventData {
@@ -116,8 +116,21 @@ export default function EnhancedStagingEventsPage() {
   const [loading, setLoading] = useState(true);
   const [editDialog, setEditDialog] = useState(false);
   const [viewDialog, setViewDialog] = useState(false);
+  const [createDialog, setCreateDialog] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<StagingEvent | null>(null);
   const [editedEvent, setEditedEvent] = useState<EventData | null>(null);
+  const [newEvent, setNewEvent] = useState<Partial<EventData>>({
+    title: '',
+    summary: '',
+    category: '',
+    severity: 'medium',
+    dateTime: Timestamp.now(),
+    location: {
+      text: { eng: '' },
+      country: { eng: '' },
+      needsGeocoding: true
+    }
+  });
   const [reviewNotes, setReviewNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('all');
@@ -246,6 +259,80 @@ export default function EnhancedStagingEventsPage() {
     } catch (error) {
       console.error('Error updating and approving event:', error);
       toast.error('Failed to update and approve event');
+    }
+  };
+
+  const handleCreateEvent = async () => {
+    // Validate required fields
+    if (!newEvent.title || !newEvent.summary || !newEvent.category || !newEvent.severity) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!newEvent.location?.text?.eng || !newEvent.location?.country?.eng) {
+      toast.error('Please provide location information');
+      return;
+    }
+
+    try {
+      // Generate unique event ID in the format eng-XXXXXXXX
+      const timestamp = Date.now();
+      const randomNum = Math.floor(10000000 + Math.random() * 90000000); // 8-digit number
+      const eventId = `eng-${randomNum}`;
+      const newsApiUri = eventId; // Use same ID for newsApiUri to maintain consistency
+
+      // Create the staging event document with all required fields
+      const stagingEvent = {
+        eventId: eventId,
+        collectedAt: serverTimestamp(),
+        firstSeen: serverTimestamp(), // Add firstSeen timestamp for duplicate tracking
+        newsApiUri: newsApiUri, // Add newsApiUri at root level for tracking
+        event: {
+          title: newEvent.title,
+          summary: newEvent.summary,
+          dateTime: newEvent.dateTime || Timestamp.now(),
+          location: {
+            text: { eng: newEvent.location.text.eng },
+            country: { eng: newEvent.location.country.eng },
+            needsGeocoding: true
+          },
+          category: newEvent.category,
+          severity: newEvent.severity
+        },
+        metadata: {
+          articleCount: 0,
+          newsApiUri: newsApiUri, // Also keep it in metadata for consistency
+          isDuplicate: false,
+          relatedEvents: [],
+          createdBy: user?.email || 'unknown',
+          createdAt: serverTimestamp(),
+          source: 'manual'
+        },
+        reviewStatus: 'pending'
+      };
+
+      // Add to Firestore
+      await addDoc(collection(db, 'staging_events'), stagingEvent);
+
+      toast.success('Event created successfully');
+
+      // Reset form and close dialog
+      setNewEvent({
+        title: '',
+        summary: '',
+        category: '',
+        severity: 'medium',
+        dateTime: Timestamp.now(),
+        location: {
+          text: { eng: '' },
+          country: { eng: '' },
+          needsGeocoding: true
+        }
+      });
+      setCreateDialog(false);
+    } catch (error) {
+      console.error('Error creating event:', error);
+      toast.error('Failed to create event');
     }
   };
 
@@ -422,27 +509,6 @@ export default function EnhancedStagingEventsPage() {
     }
   ];
 
-  // Quick Actions
-  const quickActionHandlers = [
-    {
-      icon: <AddIcon />,
-      name: 'Add Event',
-      onClick: () => toast('Add event feature coming soon!'),
-      color: 'primary' as const,
-    },
-    {
-      icon: <RefreshIcon />,
-      name: 'Refresh',
-      onClick: () => fetchEvents(),
-      color: 'info' as const,
-    },
-    {
-      icon: <DownloadIcon />,
-      name: 'Export',
-      onClick: () => toast('Export feature coming soon!'),
-      color: 'success' as const,
-    },
-  ];
 
   if (loading) {
     return <LoadingSkeleton variant="table" rows={10} />;
@@ -459,7 +525,6 @@ export default function EnhancedStagingEventsPage() {
           onAction={() => fetchEvents()}
           height="60vh"
         />
-        <QuickActions actions={quickActionHandlers} />
       </>
     );
   }
@@ -481,19 +546,34 @@ export default function EnhancedStagingEventsPage() {
               Review, edit, and approve incoming events
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            startIcon={<RefreshIcon />}
-            onClick={fetchEvents}
-            sx={{
-              background: 'linear-gradient(135deg, #FFA726 0%, #FB8C00 100%)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #FB8C00 0%, #FFA726 100%)',
-              },
-            }}
-          >
-            Refresh
-          </Button>
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateDialog(true)}
+              sx={{
+                background: 'linear-gradient(135deg, #66BB6A 0%, #4CAF50 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%)',
+                },
+              }}
+            >
+              New Event
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<RefreshIcon />}
+              onClick={fetchEvents}
+              sx={{
+                background: 'linear-gradient(135deg, #FFA726 0%, #FB8C00 100%)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #FB8C00 0%, #FFA726 100%)',
+                },
+              }}
+            >
+              Refresh
+            </Button>
+          </Stack>
         </Box>
       </motion.div>
 
@@ -798,8 +878,147 @@ export default function EnhancedStagingEventsPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Quick Actions SpeedDial */}
-      <QuickActions actions={quickActionHandlers} />
+      {/* Create Event Dialog */}
+      <Dialog open={createDialog} onClose={() => setCreateDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Create New Event</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              required
+              label="Event Title"
+              value={newEvent.title || ''}
+              onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+              helperText="Provide a clear, concise title for the event"
+            />
+            <TextField
+              fullWidth
+              required
+              multiline
+              rows={4}
+              label="Event Summary"
+              value={newEvent.summary || ''}
+              onChange={(e) => setNewEvent({ ...newEvent, summary: e.target.value })}
+              helperText="Describe the event in detail"
+            />
+            <FormControl fullWidth required>
+              <InputLabel>Category</InputLabel>
+              <Select
+                value={newEvent.category || ''}
+                onChange={(e) => setNewEvent({ ...newEvent, category: e.target.value })}
+                label="Category"
+              >
+                <MenuItem value="">Select a category</MenuItem>
+                {CATEGORIES.map(cat => (
+                  <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth required>
+              <InputLabel>Severity</InputLabel>
+              <Select
+                value={newEvent.severity || 'medium'}
+                onChange={(e) => setNewEvent({ ...newEvent, severity: e.target.value })}
+                label="Severity"
+              >
+                {SEVERITIES.map(sev => (
+                  <MenuItem key={sev} value={sev}>
+                    <Chip
+                      label={sev}
+                      size="small"
+                      color={getSeverityColor(sev)}
+                    />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Divider sx={{ my: 2 }}>Location Information</Divider>
+            <TextField
+              fullWidth
+              required
+              label="Location Description"
+              value={newEvent.location?.text?.eng || ''}
+              onChange={(e) => setNewEvent({
+                ...newEvent,
+                location: {
+                  ...newEvent.location,
+                  text: { eng: e.target.value },
+                  country: newEvent.location?.country || { eng: '' },
+                  needsGeocoding: true
+                }
+              })}
+              helperText="Describe the specific location (e.g., 'Downtown Manhattan, New York City')"
+            />
+            <TextField
+              fullWidth
+              required
+              label="Country"
+              value={newEvent.location?.country?.eng || ''}
+              onChange={(e) => setNewEvent({
+                ...newEvent,
+                location: {
+                  ...newEvent.location,
+                  text: newEvent.location?.text || { eng: '' },
+                  country: { eng: e.target.value },
+                  needsGeocoding: true
+                }
+              })}
+              helperText="Enter the country name (e.g., 'United States')"
+            />
+            <TextField
+              fullWidth
+              label="Event Date/Time"
+              type="datetime-local"
+              value={(() => {
+                if (!newEvent.dateTime) return '';
+                const date = newEvent.dateTime.toDate ? newEvent.dateTime.toDate() : new Date();
+                return date.toISOString().slice(0, 16);
+              })()}
+              onChange={(e) => {
+                const date = new Date(e.target.value);
+                setNewEvent({ ...newEvent, dateTime: Timestamp.fromDate(date) });
+              }}
+              InputLabelProps={{
+                shrink: true,
+              }}
+              helperText="When did this event occur?"
+            />
+            <Alert severity="info">
+              This event will be created as a manual entry and marked as pending review.
+              You can approve it immediately after creation if needed.
+            </Alert>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setCreateDialog(false);
+            // Reset form
+            setNewEvent({
+              title: '',
+              summary: '',
+              category: '',
+              severity: 'medium',
+              dateTime: Timestamp.now(),
+              location: {
+                text: { eng: '' },
+                country: { eng: '' },
+                needsGeocoding: true
+              }
+            });
+          }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleCreateEvent}
+            startIcon={<AddIcon />}
+          >
+            Create Event
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 }

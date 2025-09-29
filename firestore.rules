@@ -82,12 +82,12 @@ service cloud.firestore {
       }
     }
 
-    // Users collection rules
+    // Users collection rules - for user management tracking
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated();
     }
 
     // Registrations collection rules

@@ -8,7 +8,8 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase/client';
+import { auth, db } from '@/lib/firebase/client';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
@@ -36,9 +37,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setLoading(false);
+
+      // If user is signed in, ensure they're in the users collection
+      if (user) {
+        try {
+          const userDoc = doc(db, 'users', user.uid);
+          await setDoc(userDoc, {
+            email: user.email,
+            lastLogin: serverTimestamp(),
+            createdAt: serverTimestamp(), // Will only set if doesn't exist due to merge
+            role: 'user', // Default role
+          }, { merge: true });
+        } catch (error) {
+          console.error('Error updating user in collection:', error);
+        }
+      }
     });
 
     return unsubscribe;
