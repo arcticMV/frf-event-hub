@@ -74,6 +74,7 @@ import {
   serverTimestamp,
   Timestamp,
   onSnapshot,
+  setDoc,
 } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -199,7 +200,7 @@ export default function EnhancedAnalysisQueuePage() {
       });
 
       // Move to verified_events collection
-      await updateDoc(doc(db, 'verified_events', event.id), {
+      await setDoc(doc(db, 'verified_events', event.id), {
         ...event,
         verificationStatus: 'verified',
         verifiedBy: user?.email,
