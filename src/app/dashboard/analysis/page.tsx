@@ -205,6 +205,7 @@ export default function EnhancedAnalysisQueuePage() {
         verifiedBy: user?.email,
         verifiedAt: serverTimestamp(),
         verificationNotes: verificationNotes,
+        seenStatus: false,
       });
 
       toast.success('Event verified and moved to verified events');
