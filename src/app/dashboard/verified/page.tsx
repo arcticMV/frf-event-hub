@@ -31,6 +31,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Tooltip,
 } from '@mui/material';
 import {
   CheckCircle as VerifiedIcon,
@@ -49,6 +50,12 @@ import {
   Description as DescriptionIcon,
   Event as EventIcon,
 } from '@mui/icons-material';
+import {
+  DataGrid,
+  GridColDef,
+  GridRenderCellParams,
+  GridActionsCellItem,
+} from '@mui/x-data-grid';
 import { db } from '@/lib/firebase/client';
 import {
   collection,
@@ -64,7 +71,6 @@ import toast from 'react-hot-toast';
 import GlassCard from '@/components/GlassCard';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
-import QuickActions from '@/components/QuickActions';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 import { motion } from 'framer-motion';
 
@@ -157,7 +163,7 @@ export default function EnhancedVerifiedEventsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
 
   // Set up real-time listener
   useEffect(() => {
@@ -170,8 +176,12 @@ export default function EnhancedVerifiedEventsPage() {
           ...data
         } as VerifiedEvent);
       });
-      // Sort by severity descending
-      fetchedEvents.sort((a, b) => (b.analysis?.impactAssessment?.severity || 0) - (a.analysis?.impactAssessment?.severity || 0));
+      // Sort by lastUpdated descending (most recent first)
+      fetchedEvents.sort((a, b) => {
+        const aTime = a.metadata?.lastUpdated?.toMillis?.() || a.metadata?.lastUpdated || 0;
+        const bTime = b.metadata?.lastUpdated?.toMillis?.() || b.metadata?.lastUpdated || 0;
+        return (bTime as number) - (aTime as number);
+      });
       setEvents(fetchedEvents);
       setLoading(false);
     }, (error) => {
@@ -262,20 +272,135 @@ export default function EnhancedVerifiedEventsPage() {
   // Get unique categories
   const categories = [...new Set(events.map(e => e.event?.category).filter(Boolean))];
 
-  // Quick Actions
-  const quickActionHandlers = [
+  // Table columns
+  const columns: GridColDef[] = [
     {
-      icon: <RefreshIcon />,
-      name: 'Refresh',
-      onClick: () => window.location.reload(),
-      color: 'info' as const,
+      field: 'eventId',
+      headerName: 'Event ID',
+      width: 120,
+      renderCell: (params) => (
+        <Tooltip title={params.value}>
+          <Typography variant="body2" noWrap>{params.value}</Typography>
+        </Tooltip>
+      )
     },
     {
-      icon: <DownloadIcon />,
-      name: 'Export',
-      onClick: () => toast('Export feature coming soon!'),
-      color: 'success' as const,
+      field: 'title',
+      headerName: 'Title',
+      flex: 2,
+      minWidth: 250,
+      valueGetter: (value, row) => row.event?.title || 'N/A',
+      renderCell: (params) => (
+        <Tooltip title={params.value}>
+          <Typography variant="body2" noWrap>{params.value}</Typography>
+        </Tooltip>
+      )
     },
+    {
+      field: 'category',
+      headerName: 'Category',
+      width: 130,
+      valueGetter: (value, row) => row.event?.category || 'unknown',
+      renderCell: (params) => (
+        <Chip label={params.value} size="small" color="primary" variant="outlined" />
+      )
+    },
+    {
+      field: 'severity',
+      headerName: 'Severity',
+      width: 110,
+      valueGetter: (value, row) => row.event?.severity || 'unknown',
+      renderCell: (params) => (
+        <Chip label={params.value} size="small" color={getSeverityColor(8)} />
+      )
+    },
+    {
+      field: 'riskScore',
+      headerName: 'Risk Score',
+      width: 130,
+      valueGetter: (value, row) => row.analysis?.impactAssessment?.severity || 0,
+      renderCell: (params: GridRenderCellParams) => {
+        const score = params.value as number;
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <LinearProgress
+              variant="determinate"
+              value={score * 10}
+              sx={{
+                width: 60,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: 'grey.300',
+                '& .MuiLinearProgress-bar': {
+                  backgroundColor: score >= 8 ? 'error.main' :
+                                  score >= 6 ? 'warning.main' :
+                                  score >= 4 ? 'info.main' : 'success.main'
+                }
+              }}
+            />
+            <Typography variant="body2" fontWeight="bold">
+              {score}/10
+            </Typography>
+          </Box>
+        );
+      }
+    },
+    {
+      field: 'location',
+      headerName: 'Location',
+      flex: 1,
+      minWidth: 180,
+      valueGetter: (value, row) => {
+        const location = row.event?.location?.text?.eng || '';
+        const country = row.event?.location?.country?.eng || '';
+        return country ? `${location}, ${country}` : location || 'Unknown';
+      },
+      renderCell: (params) => (
+        <Tooltip title={params.value}>
+          <Typography variant="body2" noWrap>{params.value}</Typography>
+        </Tooltip>
+      )
+    },
+    {
+      field: 'confidence',
+      headerName: 'Confidence',
+      width: 110,
+      valueGetter: (value, row) => row.analysis?.riskClassification?.confidence || 0,
+      renderCell: (params) => {
+        const confidence = (params.value as number) * 100;
+        return (
+          <Chip
+            label={`${confidence.toFixed(0)}%`}
+            size="small"
+            color={confidence >= 80 ? 'success' : confidence >= 60 ? 'warning' : 'error'}
+            variant="outlined"
+          />
+        );
+      }
+    },
+    {
+      field: 'lastUpdated',
+      headerName: 'Last Updated',
+      width: 180,
+      valueGetter: (value, row) => formatDate(row.metadata?.lastUpdated || row.processHistory?.verifiedAt || row.metadata?.createdAt),
+    },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      type: 'actions',
+      width: 100,
+      getActions: (params) => {
+        const event = params.row as VerifiedEvent;
+        return [
+          <GridActionsCellItem
+            key="view"
+            icon={<ViewIcon />}
+            label="View"
+            onClick={() => handleView(event)}
+          />,
+        ];
+      }
+    }
   ];
 
   if (loading) {
@@ -284,15 +409,12 @@ export default function EnhancedVerifiedEventsPage() {
 
   if (events.length === 0) {
     return (
-      <>
-        <EmptyState
-          title="No Verified Events"
-          description="Verified events will appear here once they've been analyzed and confirmed."
-          icon={<VerifiedIcon />}
-          height="60vh"
-        />
-        <QuickActions actions={quickActionHandlers} />
-      </>
+      <EmptyState
+        title="No Verified Events"
+        description="Verified events will appear here once they've been analyzed and confirmed."
+        icon={<VerifiedIcon />}
+        height="60vh"
+      />
     );
   }
 
@@ -546,8 +668,20 @@ export default function EnhancedVerifiedEventsPage() {
           ))}
         </Box>
       ) : (
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="body1">Table view coming soon...</Typography>
+        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+          <Box sx={{ height: 600 }}>
+            <DataGrid
+              rows={filteredEvents}
+              columns={columns}
+              pageSizeOptions={[10, 25, 50, 100]}
+              initialState={{
+                pagination: { paginationModel: { page: 0, pageSize: 25 } },
+                sorting: { sortModel: [{ field: 'lastUpdated', sort: 'desc' }] },
+              }}
+              checkboxSelection
+              disableRowSelectionOnClick
+            />
+          </Box>
         </Paper>
       )}
 
@@ -882,9 +1016,6 @@ export default function EnhancedVerifiedEventsPage() {
           <Button onClick={() => setViewDialog(false)} variant="contained">Close</Button>
         </DialogActions>
       </Dialog>
-
-      {/* Quick Actions */}
-      <QuickActions actions={quickActionHandlers} />
     </Box>
   );
 }
