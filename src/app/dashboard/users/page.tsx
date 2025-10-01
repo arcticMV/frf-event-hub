@@ -43,7 +43,7 @@ import {
 import { auth, db } from '@/lib/firebase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
-import { createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import {
   collection,
   doc,
@@ -77,6 +77,8 @@ export default function UserManagementPage() {
   const [newPassword, setNewPassword] = useState('');
   const [creating, setCreating] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [reAuthDialog, setReAuthDialog] = useState(false);
+  const [reAuthPassword, setReAuthPassword] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -130,37 +132,56 @@ export default function UserManagementPage() {
 
     setCreating(true);
     try {
-      // Save current user to restore later
+      // Save current user info
       const currentUser = auth.currentUser;
+      const currentEmail = currentUser?.email;
 
       // Create new user (this will sign in as the new user)
       const userCredential = await createUserWithEmailAndPassword(auth, newEmail, newPassword);
+      const newUserId = userCredential.user.uid;
 
       // Add user to Firestore users collection
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+      await setDoc(doc(db, 'users', newUserId), {
         email: newEmail,
         createdAt: serverTimestamp(),
-        createdBy: currentUserEmail,
+        createdBy: currentEmail,
         role: 'user',
       });
 
       toast.success(`User ${newEmail} created successfully`);
 
-      // Note to user about needing to sign back in
-      toast('Note: You may need to sign back into your account', {
-        icon: '⚠️',
-        duration: 5000,
-      });
+      // Important: Re-authenticate as the original user
+      // We need to prompt for password to re-authenticate
+      if (currentEmail) {
+        setCreateDialog(false);
+        setReAuthDialog(true);
+      }
 
       // Reset form
       setNewEmail('');
       setNewPassword('');
-      setCreateDialog(false);
     } catch (error: any) {
       console.error('Error creating user:', error);
       toast.error(error.message || 'Failed to create user');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleReAuthenticate = async () => {
+    if (!currentUserEmail || !reAuthPassword) {
+      toast.error('Please enter your password');
+      return;
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, currentUserEmail, reAuthPassword);
+      toast.success('Successfully re-authenticated');
+      setReAuthDialog(false);
+      setReAuthPassword('');
+    } catch (error: any) {
+      console.error('Error re-authenticating:', error);
+      toast.error('Failed to re-authenticate. Please check your password.');
     }
   };
 
@@ -524,6 +545,52 @@ export default function UserManagementPage() {
             startIcon={<DeleteIcon />}
           >
             Delete User
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Re-authentication Dialog */}
+      <Dialog open={reAuthDialog} onClose={() => setReAuthDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Re-authenticate Required</DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              User created successfully! Please enter your password to continue as {currentUserEmail}.
+            </Typography>
+          </Alert>
+          <TextField
+            fullWidth
+            type="password"
+            label="Your Password"
+            value={reAuthPassword}
+            onChange={(e) => setReAuthPassword(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleReAuthenticate();
+              }
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <LockIcon />
+                </InputAdornment>
+              ),
+            }}
+            helperText={`Enter password for ${currentUserEmail}`}
+            autoFocus
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReAuthDialog(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleReAuthenticate}
+            disabled={!reAuthPassword}
+          >
+            Re-authenticate
           </Button>
         </DialogActions>
       </Dialog>

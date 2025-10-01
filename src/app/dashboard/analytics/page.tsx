@@ -1,115 +1,243 @@
 'use client';
 
-import { TrendingUp, Users, Calendar, Eye } from 'lucide-react';
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Paper,
+  Avatar,
+  List,
+  ListItem,
+  ListItemText,
+} from '@mui/material';
+import Grid from '@mui/material/GridLegacy';
+import {
+  TrendingUp as TrendingUpIcon,
+  People as PeopleIcon,
+  Event as EventIcon,
+  Visibility as VisibilityIcon,
+  ArrowUpward as ArrowUpIcon,
+  ArrowDownward as ArrowDownIcon,
+} from '@mui/icons-material';
+
+const metrics = [
+  {
+    title: 'Total Views',
+    value: '12,543',
+    change: 12,
+    positive: true,
+    icon: VisibilityIcon,
+    color: 'purple',
+  },
+  {
+    title: 'Conversion Rate',
+    value: '68%',
+    change: 5,
+    positive: true,
+    icon: TrendingUpIcon,
+    color: 'green',
+  },
+  {
+    title: 'Active Events',
+    value: '8',
+    subtitle: '3 ending soon',
+    icon: EventIcon,
+    color: 'blue',
+  },
+  {
+    title: 'Avg. Attendees',
+    value: '74',
+    change: -3,
+    positive: false,
+    icon: PeopleIcon,
+    color: 'orange',
+  },
+];
+
+const topEvents = [
+  { name: 'Annual Tech Conference', attendees: 186 },
+  { name: 'Spring Networking', attendees: 142 },
+  { name: 'Innovation Workshop', attendees: 98 },
+  { name: 'Summer Meetup', attendees: 76 },
+  { name: 'Product Launch', attendees: 64 },
+];
+
+const getColorValue = (color: string) => {
+  const colors = {
+    purple: { bg: '#f3e8ff', main: '#9333ea' },
+    green: { bg: '#dcfce7', main: '#16a34a' },
+    blue: { bg: '#dbeafe', main: '#2563eb' },
+    orange: { bg: '#fed7aa', main: '#ea580c' },
+  };
+  return colors[color as keyof typeof colors] || colors.blue;
+};
 
 export default function AnalyticsPage() {
   return (
-    <div>
+    <Box>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-        <p className="text-gray-600">Track performance and insights</p>
-      </div>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" fontWeight="bold" gutterBottom>
+          Analytics
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Track performance and insights
+        </Typography>
+      </Box>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Views</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">12,543</p>
-              <p className="text-sm text-green-600 mt-1">↑ 12% vs last month</p>
-            </div>
-            <div className="p-3 bg-purple-50 rounded-lg">
-              <Eye className="h-6 w-6 text-purple-600" />
-            </div>
-          </div>
-        </div>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {metrics.map((metric, index) => {
+          const colors = getColorValue(metric.color || 'blue');
+          const Icon = metric.icon;
+          return (
+            <Grid item xs={12} sm={6} md={3} key={index}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        {metric.title}
+                      </Typography>
+                      <Typography variant="h4" fontWeight="bold">
+                        {metric.value}
+                      </Typography>
+                      {metric.change !== undefined ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                          {metric.positive ? (
+                            <ArrowUpIcon sx={{ fontSize: 16, color: 'success.main' }} />
+                          ) : (
+                            <ArrowDownIcon sx={{ fontSize: 16, color: 'error.main' }} />
+                          )}
+                          <Typography
+                            variant="body2"
+                            color={metric.positive ? 'success.main' : 'error.main'}
+                          >
+                            {Math.abs(metric.change)}% vs last month
+                          </Typography>
+                        </Box>
+                      ) : metric.subtitle ? (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          {metric.subtitle}
+                        </Typography>
+                      ) : null}
+                    </Box>
+                    <Avatar sx={{ bgcolor: colors.bg, width: 56, height: 56 }}>
+                      <Icon sx={{ color: colors.main }} />
+                    </Avatar>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          );
+        })}
+      </Grid>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Conversion Rate</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">68%</p>
-              <p className="text-sm text-green-600 mt-1">↑ 5% vs last month</p>
-            </div>
-            <div className="p-3 bg-green-50 rounded-lg">
-              <TrendingUp className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-        </div>
+      {/* Charts */}
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Registration Trends
+              </Typography>
+              <Paper
+                sx={{
+                  height: 256,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: 'grey.50',
+                }}
+              >
+                <Typography color="text.secondary">
+                  Chart visualization will be added here
+                </Typography>
+              </Paper>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Active Events</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">8</p>
-              <p className="text-sm text-gray-500 mt-1">3 ending soon</p>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-lg">
-              <Calendar className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Event Categories
+              </Typography>
+              <Paper
+                sx={{
+                  height: 256,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: 'grey.50',
+                }}
+              >
+                <Typography color="text.secondary">
+                  Pie chart visualization will be added here
+                </Typography>
+              </Paper>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Avg. Attendees</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">74</p>
-              <p className="text-sm text-red-600 mt-1">↓ 3% vs last month</p>
-            </div>
-            <div className="p-3 bg-orange-50 rounded-lg">
-              <Users className="h-6 w-6 text-orange-600" />
-            </div>
-          </div>
-        </div>
-      </div>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Monthly Performance
+              </Typography>
+              <Paper
+                sx={{
+                  height: 256,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: 'grey.50',
+                }}
+              >
+                <Typography color="text.secondary">
+                  Bar chart visualization will be added here
+                </Typography>
+              </Paper>
+            </CardContent>
+          </Card>
+        </Grid>
 
-      {/* Charts Placeholder */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Registration Trends</h3>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-            <p className="text-gray-500">Chart visualization will be added here</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Event Categories</h3>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-            <p className="text-gray-500">Pie chart visualization will be added here</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Performance</h3>
-          <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-            <p className="text-gray-500">Bar chart visualization will be added here</p>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Events</h3>
-          <div className="space-y-3">
-            {[
-              { name: 'Annual Tech Conference', attendees: 186 },
-              { name: 'Spring Networking', attendees: 142 },
-              { name: 'Innovation Workshop', attendees: 98 },
-              { name: 'Summer Meetup', attendees: 76 },
-              { name: 'Product Launch', attendees: 64 },
-            ].map((event, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="text-sm font-medium text-gray-900">{index + 1}.</span>
-                  <span className="ml-2 text-sm text-gray-700">{event.name}</span>
-                </div>
-                <span className="text-sm font-medium text-gray-900">{event.attendees}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Top Events
+              </Typography>
+              <List dense>
+                {topEvents.map((event, index) => (
+                  <ListItem key={index} sx={{ px: 0 }}>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Typography variant="body2" fontWeight="medium" sx={{ mr: 1 }}>
+                              {index + 1}.
+                            </Typography>
+                            <Typography variant="body2">
+                              {event.name}
+                            </Typography>
+                          </Box>
+                          <Typography variant="body2" fontWeight="medium">
+                            {event.attendees}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }
