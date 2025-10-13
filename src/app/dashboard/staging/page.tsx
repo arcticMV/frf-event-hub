@@ -32,7 +32,6 @@ import {
   GridColDef,
   GridRenderCellParams,
   GridActionsCellItem,
-  GridRowSelectionModel,
 } from '@mui/x-data-grid';
 import {
   Edit as EditIcon,
@@ -137,7 +136,7 @@ export default function EnhancedStagingEventsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [selectedRowIds, setSelectedRowIds] = useState<(string | number)[]>([]);
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
 
   const fetchEvents = async () => {
     try {
@@ -231,15 +230,21 @@ export default function EnhancedStagingEventsPage() {
 
   const handleBulkDelete = async () => {
     setDeleteConfirmDialog(false);
+
+    if (selectedRowIds.length === 0) {
+      toast.error('No events selected');
+      return;
+    }
+
     const deletePromises = selectedRowIds.map(id =>
-      deleteDoc(doc(db, 'staging_events', id as string))
+      deleteDoc(doc(db, 'staging_events', id))
     );
 
     try {
       await Promise.all(deletePromises);
       toast.success(`Successfully deleted ${selectedRowIds.length} event(s)`);
+      // Clear selection state
       setSelectedRowIds([]);
-      fetchEvents();
     } catch (error) {
       console.error('Error deleting events:', error);
       toast.error('Failed to delete some events');
@@ -562,9 +567,18 @@ export default function EnhancedStagingEventsPage() {
             <Typography variant="h4" fontWeight="bold">
               Staging Events Management
             </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Review, edit, and approve incoming events
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body1" color="text.secondary">
+                Review, edit, and approve incoming events
+              </Typography>
+              {selectedRowIds.length > 0 && (
+                <Chip
+                  label={`${selectedRowIds.length} selected`}
+                  size="small"
+                  color="primary"
+                />
+              )}
+            </Box>
           </Box>
           <Stack direction="row" spacing={2}>
             {selectedRowIds.length > 0 && (
@@ -754,9 +768,28 @@ export default function EnhancedStagingEventsPage() {
               checkboxSelection
               disableRowSelectionOnClick
               onRowSelectionModelChange={(newSelection) => {
-                setSelectedRowIds(newSelection as unknown as (string | number)[]);
+                // MUI DataGrid v7+ passes a Map-like object with entries() method
+                let ids: string[] = [];
+
+                if (Array.isArray(newSelection)) {
+                  // If it's already an array
+                  ids = newSelection.map(id => String(id));
+                } else if (newSelection && typeof newSelection === 'object') {
+                  // If it's an object (Map-like structure)
+                  if ('entries' in newSelection && typeof newSelection.entries === 'function') {
+                    // It's a Map-like object
+                    ids = Array.from(newSelection as any).map((id: any) => String(id));
+                  } else if ('ids' in newSelection) {
+                    // It might have an 'ids' property
+                    ids = Array.from((newSelection as any).ids).map((id: any) => String(id));
+                  } else {
+                    // Try to convert object keys or values
+                    ids = Object.keys(newSelection).filter(key => key !== 'type');
+                  }
+                }
+
+                setSelectedRowIds(ids);
               }}
-              rowSelectionModel={selectedRowIds as unknown as GridRowSelectionModel}
               sx={{
                 border: 'none',
                 '& .MuiDataGrid-cell': {
@@ -1081,7 +1114,7 @@ export default function EnhancedStagingEventsPage() {
           </Typography>
           <Box sx={{ mt: 2, maxHeight: 200, overflow: 'auto', bgcolor: 'background.default', p: 2, borderRadius: 1 }}>
             {events
-              .filter(event => selectedRowIds.includes(event.id as string))
+              .filter(event => selectedRowIds.includes(event.id))
               .map(event => (
                 <Typography key={event.id} variant="body2" sx={{ mb: 1 }}>
                   • {event.eventId} - {event.event.title}
