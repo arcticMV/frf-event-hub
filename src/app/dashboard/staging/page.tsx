@@ -32,6 +32,7 @@ import {
   GridColDef,
   GridRenderCellParams,
   GridActionsCellItem,
+  GridRowSelectionModel,
 } from '@mui/x-data-grid';
 import {
   Edit as EditIcon,
@@ -117,6 +118,7 @@ export default function EnhancedStagingEventsPage() {
   const [editDialog, setEditDialog] = useState(false);
   const [viewDialog, setViewDialog] = useState(false);
   const [createDialog, setCreateDialog] = useState(false);
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<StagingEvent | null>(null);
   const [editedEvent, setEditedEvent] = useState<EventData | null>(null);
   const [newEvent, setNewEvent] = useState<Partial<EventData>>({
@@ -135,6 +137,7 @@ export default function EnhancedStagingEventsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [selectedRowIds, setSelectedRowIds] = useState<(string | number)[]>([]);
 
   const fetchEvents = async () => {
     try {
@@ -223,6 +226,23 @@ export default function EnhancedStagingEventsPage() {
         console.error('Error deleting event:', error);
         toast.error('Failed to delete event');
       }
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setDeleteConfirmDialog(false);
+    const deletePromises = selectedRowIds.map(id =>
+      deleteDoc(doc(db, 'staging_events', id as string))
+    );
+
+    try {
+      await Promise.all(deletePromises);
+      toast.success(`Successfully deleted ${selectedRowIds.length} event(s)`);
+      setSelectedRowIds([]);
+      fetchEvents();
+    } catch (error) {
+      console.error('Error deleting events:', error);
+      toast.error('Failed to delete some events');
     }
   };
 
@@ -547,6 +567,24 @@ export default function EnhancedStagingEventsPage() {
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
+            {selectedRowIds.length > 0 && (
+              <Fade in>
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={() => setDeleteConfirmDialog(true)}
+                  sx={{
+                    background: 'linear-gradient(135deg, #EF5350 0%, #E53935 100%)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #E53935 0%, #D32F2F 100%)',
+                    },
+                  }}
+                >
+                  Delete Selected ({selectedRowIds.length})
+                </Button>
+              </Fade>
+            )}
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -715,6 +753,10 @@ export default function EnhancedStagingEventsPage() {
               }}
               checkboxSelection
               disableRowSelectionOnClick
+              onRowSelectionModelChange={(newSelection) => {
+                setSelectedRowIds(newSelection as unknown as (string | number)[]);
+              }}
+              rowSelectionModel={selectedRowIds as unknown as GridRowSelectionModel}
               sx={{
                 border: 'none',
                 '& .MuiDataGrid-cell': {
@@ -1015,6 +1057,55 @@ export default function EnhancedStagingEventsPage() {
             startIcon={<AddIcon />}
           >
             Create Event
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmDialog} onClose={() => setDeleteConfirmDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <DeleteIcon color="error" />
+            <Typography variant="h6">Confirm Bulk Delete</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This action cannot be undone!
+          </Alert>
+          <Typography variant="body1">
+            Are you sure you want to delete <strong>{selectedRowIds.length}</strong> selected event(s)?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            The following events will be permanently removed from the staging collection:
+          </Typography>
+          <Box sx={{ mt: 2, maxHeight: 200, overflow: 'auto', bgcolor: 'background.default', p: 2, borderRadius: 1 }}>
+            {events
+              .filter(event => selectedRowIds.includes(event.id as string))
+              .map(event => (
+                <Typography key={event.id} variant="body2" sx={{ mb: 1 }}>
+                  • {event.eventId} - {event.event.title}
+                </Typography>
+              ))}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmDialog(false)} variant="outlined">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleBulkDelete}
+            variant="contained"
+            color="error"
+            startIcon={<DeleteIcon />}
+            sx={{
+              background: 'linear-gradient(135deg, #EF5350 0%, #E53935 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #E53935 0%, #D32F2F 100%)',
+              },
+            }}
+          >
+            Delete {selectedRowIds.length} Event(s)
           </Button>
         </DialogActions>
       </Dialog>

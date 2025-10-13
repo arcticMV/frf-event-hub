@@ -688,7 +688,7 @@ export default function EnhancedVerifiedEventsPage() {
       {/* View Dialog */}
       <Dialog open={viewDialog} onClose={() => setViewDialog(false)} maxWidth="lg" fullWidth>
         <DialogTitle>
-          <Typography variant="h5" fontWeight="bold">
+          <Typography variant="h5" fontWeight="bold" component="span">
             Verified Intelligence Report
           </Typography>
         </DialogTitle>

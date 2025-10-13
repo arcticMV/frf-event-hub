@@ -192,6 +192,7 @@ export default function EnhancedAnalysisQueuePage() {
 
   const handleVerify = async (event: AnalysisEvent) => {
     try {
+      // Update analysis_queue verification status
       await updateDoc(doc(db, 'analysis_queue', event.id), {
         verificationStatus: 'verified',
         verifiedBy: user?.email,
@@ -199,7 +200,7 @@ export default function EnhancedAnalysisQueuePage() {
         verificationNotes: verificationNotes,
       });
 
-      // Move to verified_events collection
+      // Create verified_events document with seenStatus
       await setDoc(doc(db, 'verified_events', event.id), {
         ...event,
         verificationStatus: 'verified',
