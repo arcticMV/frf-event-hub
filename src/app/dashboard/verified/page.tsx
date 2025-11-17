@@ -74,6 +74,11 @@ import EmptyState from '@/components/EmptyState';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 import { motion } from 'framer-motion';
 
+// New usability features
+import EnhancedFilters, { FilterValues } from '@/components/EnhancedFilters';
+import { useContextPreservation } from '@/hooks/useContextPreservation';
+import { useGlobalShortcuts } from '@/hooks/useKeyboardShortcuts';
+
 interface VerifiedEvent {
   id: string;
   eventId: string;
@@ -160,10 +165,46 @@ export default function EnhancedVerifiedEventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<VerifiedEvent | null>(null);
   const [viewDialog, setViewDialog] = useState(false);
   const [tabValue, setTabValue] = useState(0);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterSeverity, setFilterSeverity] = useState('all');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table');
+
+  // Context preservation for filters and view mode
+  const { context, updateContext, restored } = useContextPreservation('verified-events');
+
+  const [filters, setFilters] = useState<FilterValues>(context.filters || {});
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>(() => {
+    const savedViewMode = context.viewMode;
+    return (savedViewMode === 'cards' || savedViewMode === 'table') ? savedViewMode : 'table';
+  });
+
+  // Update context when filters or view mode change
+  useEffect(() => {
+    if (restored) {
+      updateContext({ filters, viewMode });
+    }
+  }, [filters, viewMode, restored, updateContext]);
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'verified_events'));
+      const fetchedEvents: VerifiedEvent[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedEvents.push({ id: doc.id, ...doc.data() } as VerifiedEvent);
+      });
+      fetchedEvents.sort((a, b) => {
+        const aTime = a.metadata?.lastUpdated?.toMillis?.() || a.metadata?.lastUpdated || 0;
+        const bTime = b.metadata?.lastUpdated?.toMillis?.() || b.metadata?.lastUpdated || 0;
+        return (bTime as number) - (aTime as number);
+      });
+      setEvents(fetchedEvents);
+      toast.success(`Refreshed ${fetchedEvents.length} events`);
+    } catch (error) {
+      console.error('Error refreshing events:', error);
+      toast.error('Failed to refresh events');
+    }
+  };
+
+  // Global keyboard shortcuts
+  useGlobalShortcuts(handleRefresh, undefined);
 
   // Set up real-time listener
   useEffect(() => {
@@ -243,20 +284,57 @@ export default function EnhancedVerifiedEventsPage() {
 
   // Filter events
   const filteredEvents = events.filter(event => {
-    const matchesSearch = searchTerm === '' ||
-      event.event?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      event.event?.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      event.event?.location?.country?.eng?.toLowerCase().includes(searchTerm.toLowerCase());
+    // Search filter
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      const matchesSearch =
+        event.event?.title?.toLowerCase().includes(searchLower) ||
+        event.event?.summary?.toLowerCase().includes(searchLower) ||
+        event.event?.location?.country?.eng?.toLowerCase().includes(searchLower);
+      if (!matchesSearch) return false;
+    }
 
-    const matchesSeverity = filterSeverity === 'all' ||
-      (filterSeverity === 'critical' && (event.analysis?.impactAssessment?.severity || 0) >= 8) ||
-      (filterSeverity === 'high' && (event.analysis?.impactAssessment?.severity || 0) >= 6 && (event.analysis?.impactAssessment?.severity || 0) < 8) ||
-      (filterSeverity === 'medium' && (event.analysis?.impactAssessment?.severity || 0) >= 4 && (event.analysis?.impactAssessment?.severity || 0) < 6) ||
-      (filterSeverity === 'low' && (event.analysis?.impactAssessment?.severity || 0) < 4);
+    // Category filter (multi-select)
+    if (filters.categories && filters.categories.length > 0) {
+      if (!filters.categories.includes(event.event?.category || '')) return false;
+    }
 
-    const matchesCategory = filterCategory === 'all' || event.event?.category === filterCategory;
+    // Severity filter (multi-select)
+    if (filters.severities && filters.severities.length > 0) {
+      const severity = event.analysis?.impactAssessment?.severity || 0;
+      const matchesSeverity = filters.severities.some(s => {
+        if (s === 'critical') return severity >= 8;
+        if (s === 'high') return severity >= 6 && severity < 8;
+        if (s === 'medium') return severity >= 4 && severity < 6;
+        if (s === 'low') return severity < 4;
+        return false;
+      });
+      if (!matchesSeverity) return false;
+    }
 
-    return matchesSearch && matchesSeverity && matchesCategory;
+    // Risk score range filter
+    if (filters.riskMin !== undefined) {
+      const risk = event.analysis?.impactAssessment?.severity || 0;
+      if (risk < filters.riskMin) return false;
+    }
+    if (filters.riskMax !== undefined) {
+      const risk = event.analysis?.impactAssessment?.severity || 0;
+      if (risk > filters.riskMax) return false;
+    }
+
+    // Date range filter
+    if (filters.dateFrom) {
+      const eventDate = event.event?.dateTime?.toDate?.() || new Date(0);
+      const fromDate = new Date(filters.dateFrom);
+      if (eventDate < fromDate) return false;
+    }
+    if (filters.dateTo) {
+      const eventDate = event.event?.dateTime?.toDate?.() || new Date(0);
+      const toDate = new Date(filters.dateTo);
+      if (eventDate > toDate) return false;
+    }
+
+    return true;
   });
 
   // Get statistics
@@ -504,69 +582,16 @@ export default function EnhancedVerifiedEventsPage() {
       </Stack>
 
       {/* Filters */}
-      <ProgressiveDisclosure
-        title="Show Filters"
-        variant="inline"
-        basicContent={
-          <TextField
-            fullWidth
-            placeholder="Search events by title, summary, or location..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ mb: 3 }}
-          />
-        }
-        advancedContent={
-          <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-            <FormControl sx={{ minWidth: 150 }}>
-              <InputLabel>Severity</InputLabel>
-              <Select
-                value={filterSeverity}
-                onChange={(e) => setFilterSeverity(e.target.value)}
-                label="Severity"
-                size="small"
-              >
-                <MenuItem value="all">All</MenuItem>
-                <MenuItem value="critical">Critical (8-10)</MenuItem>
-                <MenuItem value="high">High (6-7)</MenuItem>
-                <MenuItem value="medium">Medium (4-5)</MenuItem>
-                <MenuItem value="low">Low (0-3)</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl sx={{ minWidth: 150 }}>
-              <InputLabel>Category</InputLabel>
-              <Select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                label="Category"
-                size="small"
-              >
-                <MenuItem value="all">All</MenuItem>
-                {categories.map(cat => (
-                  <MenuItem key={cat} value={cat}>{cat}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setFilterSeverity('all');
-                setFilterCategory('all');
-                setSearchTerm('');
-              }}
-            >
-              Clear Filters
-            </Button>
-          </Stack>
-        }
-      />
+      <Box sx={{ mb: 3 }}>
+        <EnhancedFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          availableCategories={categories}
+          availableSeverities={['critical', 'high', 'medium', 'low']}
+          showRiskFilter={true}
+          showDateFilter={true}
+        />
+      </Box>
 
       {/* Events Display */}
       {viewMode === 'cards' ? (

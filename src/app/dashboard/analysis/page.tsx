@@ -85,6 +85,11 @@ import QuickActions from '@/components/QuickActions';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 import { motion } from 'framer-motion';
 
+// New usability features
+import ValidationMessage from '@/components/ValidationMessage';
+import { useDialogShortcuts, useGlobalShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { validateField, VALIDATION_RULES, ANALYSIS_VALIDATORS } from '@/lib/validators';
+
 interface AnalysisEvent {
   id: string;
   eventId: string;
@@ -167,6 +172,43 @@ export default function EnhancedAnalysisQueuePage() {
   const [editedAnalysis, setEditedAnalysis] = useState<any>(null);
   const [tabValue, setTabValue] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Validation for edited analysis
+  const riskScoreValidation = editedAnalysis ? validateField(editedAnalysis.impactAssessment?.severity, ANALYSIS_VALIDATORS.riskScore) : { isValid: true };
+  const confidenceValidation = editedAnalysis ? validateField(editedAnalysis.riskClassification?.confidence, ANALYSIS_VALIDATORS.confidence) : { isValid: true };
+
+  const fetchEvents = async () => {
+    try {
+      const q = query(collection(db, 'analysis_queue'));
+      const querySnapshot = await getDocs(q);
+      const fetchedEvents: AnalysisEvent[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedEvents.push({ id: doc.id, ...doc.data() } as AnalysisEvent);
+      });
+      setEvents(fetchedEvents);
+      toast.success(`Loaded ${fetchedEvents.length} events`);
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      toast.error('Failed to fetch events');
+    }
+  };
+
+  // Keyboard shortcuts for dialogs
+  useDialogShortcuts(
+    () => {
+      if (editDialog) handleSaveAnalysis();
+      if (verifyDialog && selectedEvent) handleVerify(selectedEvent);
+    },
+    () => {
+      setViewDialog(false);
+      setEditDialog(false);
+      setVerifyDialog(false);
+    },
+    viewDialog || editDialog || verifyDialog
+  );
+
+  // Global keyboard shortcuts
+  useGlobalShortcuts(fetchEvents, undefined);
 
   // Set up real-time listener
   useEffect(() => {
@@ -576,10 +618,8 @@ export default function EnhancedAnalysisQueuePage() {
 
       {/* View Dialog */}
       <Dialog open={viewDialog} onClose={() => setViewDialog(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>
-          <Typography variant="h5" fontWeight="bold">
-            Event Analysis Details
-          </Typography>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>
+          Event Analysis Details
         </DialogTitle>
         <DialogContent>
           {selectedEvent && (
@@ -849,8 +889,14 @@ export default function EnhancedAnalysisQueuePage() {
                           })}
                           inputProps={{ min: 0, max: 10 }}
                           sx={{ width: 100 }}
+                          error={!riskScoreValidation.isValid}
                         />
                       </Box>
+                      {!riskScoreValidation.isValid && (
+                        <ValidationMessage
+                          error={riskScoreValidation.error || ''}
+                        />
+                      )}
                     </Box>
                     <TextField
                       label="Primary Risk Category"
@@ -861,17 +907,25 @@ export default function EnhancedAnalysisQueuePage() {
                       })}
                       fullWidth
                     />
-                    <TextField
-                      label="Confidence (0-1)"
-                      type="number"
-                      value={editedAnalysis.riskClassification?.confidence || 0}
-                      onChange={(e) => setEditedAnalysis({
-                        ...editedAnalysis,
-                        riskClassification: { ...editedAnalysis.riskClassification, confidence: parseFloat(e.target.value) }
-                      })}
-                      inputProps={{ min: 0, max: 1, step: 0.01 }}
-                      fullWidth
-                    />
+                    <Box>
+                      <TextField
+                        label="Confidence (0-1)"
+                        type="number"
+                        value={editedAnalysis.riskClassification?.confidence || 0}
+                        onChange={(e) => setEditedAnalysis({
+                          ...editedAnalysis,
+                          riskClassification: { ...editedAnalysis.riskClassification, confidence: parseFloat(e.target.value) }
+                        })}
+                        inputProps={{ min: 0, max: 1, step: 0.01 }}
+                        fullWidth
+                        error={!confidenceValidation.isValid}
+                      />
+                      {!confidenceValidation.isValid && (
+                        <ValidationMessage
+                          error={confidenceValidation.error || ''}
+                        />
+                      )}
+                    </Box>
                   </Stack>
                 </AccordionDetails>
               </Accordion>
@@ -1077,7 +1131,13 @@ export default function EnhancedAnalysisQueuePage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSaveAnalysis}>Save Changes</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveAnalysis}
+            disabled={!riskScoreValidation.isValid || !confidenceValidation.isValid}
+          >
+            Save Changes
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -1100,14 +1160,15 @@ export default function EnhancedAnalysisQueuePage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setVerifyDialog(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => selectedEvent && handleVerify(selectedEvent)}
-            startIcon={<VerifyIcon />}
-          >
-            Verify Event
-          </Button>
+          <QuickActions
+            variant="analysis"
+            onVerify={() => {
+              if (selectedEvent) {
+                handleVerify(selectedEvent);
+              }
+            }}
+            disabled={!selectedEvent}
+          />
         </DialogActions>
       </Dialog>
     </Box>

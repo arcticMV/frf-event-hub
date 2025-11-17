@@ -235,9 +235,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   borderRadius: 1.5,
                   py: 1,
                   '&.Mui-selected': {
-                    backgroundColor: 'grey.200',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'grey.200',
                     '&:hover': {
-                      backgroundColor: 'grey.300',
+                      backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'grey.300',
                     },
                   },
                   '&:hover': {
@@ -270,10 +270,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           elevation={0}
           sx={{
             p: 1.5,
-            bgcolor: 'grey.50',
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'grey.50',
             borderRadius: 2,
             border: '1px solid',
-            borderColor: 'grey.200',
+            borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'grey.200',
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>

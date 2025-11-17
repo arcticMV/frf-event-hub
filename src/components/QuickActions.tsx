@@ -1,144 +1,229 @@
 'use client';
 
-import React, { useState } from 'react';
+/**
+ * Quick Actions Component
+ *
+ * Provides combined actions like "Approve & Next", "Verify & Next", etc.
+ * Speeds up workflow by combining multiple steps.
+ */
+
+import React from 'react';
 import {
-  SpeedDial,
-  SpeedDialAction,
-  SpeedDialIcon,
-  Backdrop,
+  Button,
+  ButtonGroup,
+  Tooltip,
+  CircularProgress,
 } from '@mui/material';
 import {
-  Add as AddIcon,
-  Refresh as RefreshIcon,
-  Search as SearchIcon,
-  Download as DownloadIcon,
-  Upload as UploadIcon,
+  CheckCircle as ApproveIcon,
+  NavigateNext as NextIcon,
+  Save as SaveIcon,
   Close as CloseIcon,
-  Edit as EditIcon,
+  FastForward as FastForwardIcon,
 } from '@mui/icons-material';
+import { isFeatureEnabled } from '@/lib/featureFlags';
 
-interface QuickAction {
-  icon: React.ReactElement;
-  name: string;
-  onClick: () => void;
-  color?: 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info';
+export interface QuickActionsProps {
+  // Primary actions
+  onSave?: () => Promise<void> | void;
+  onSaveAndClose?: () => Promise<void> | void;
+  onApprove?: () => Promise<void> | void;
+  onApproveAndNext?: () => Promise<void> | void;
+  onVerify?: () => Promise<void> | void;
+  onVerifyAndNext?: () => Promise<void> | void;
+  onClose?: () => void;
+
+  // State
+  loading?: boolean;
+  disabled?: boolean;
+
+  // Display options
+  variant?: 'staging' | 'analysis' | 'verified' | 'generic';
+  size?: 'small' | 'medium' | 'large';
+  fullWidth?: boolean;
 }
 
-interface QuickActionsProps {
-  actions?: QuickAction[];
-  position?: {
-    bottom?: number;
-    right?: number;
-    left?: number;
-    top?: number;
+export default function QuickActions({
+  onSave,
+  onSaveAndClose,
+  onApprove,
+  onApproveAndNext,
+  onVerify,
+  onVerifyAndNext,
+  onClose,
+  loading = false,
+  disabled = false,
+  variant = 'generic',
+  size = 'medium',
+  fullWidth = false,
+}: QuickActionsProps) {
+  const enabled = isFeatureEnabled('quickActions');
+
+  const [executing, setExecuting] = React.useState(false);
+
+  const handleAction = async (action: () => Promise<void> | void) => {
+    if (disabled || loading || executing) return;
+
+    setExecuting(true);
+    try {
+      await action();
+    } catch (error) {
+      console.error('Quick action error:', error);
+    } finally {
+      setExecuting(false);
+    }
   };
+
+  const isLoading = loading || executing;
+
+  // Fallback to basic buttons if feature disabled
+  if (!enabled) {
+    return (
+      <ButtonGroup size={size} fullWidth={fullWidth}>
+        {onClose && (
+          <Button onClick={onClose} disabled={disabled}>
+            Cancel
+          </Button>
+        )}
+        {onSave && (
+          <Button
+            variant="contained"
+            onClick={() => handleAction(onSave)}
+            disabled={disabled || isLoading}
+          >
+            {isLoading && <CircularProgress size={16} sx={{ mr: 1 }} />}
+            Save
+          </Button>
+        )}
+      </ButtonGroup>
+    );
+  }
+
+  // Staging variant - Approve actions
+  if (variant === 'staging') {
+    return (
+      <ButtonGroup size={size} fullWidth={fullWidth} variant="contained">
+        {onApprove && (
+          <Tooltip title="Approve this event">
+            <Button
+              onClick={() => handleAction(onApprove)}
+              disabled={disabled || isLoading}
+              startIcon={isLoading ? <CircularProgress size={16} /> : <ApproveIcon />}
+              sx={{ flex: onApproveAndNext ? 1 : 2 }}
+            >
+              Approve
+            </Button>
+          </Tooltip>
+        )}
+        {onApproveAndNext && (
+          <Tooltip title="Approve this event and move to the next one">
+            <Button
+              onClick={() => handleAction(onApproveAndNext)}
+              disabled={disabled || isLoading}
+              endIcon={<NextIcon />}
+              sx={{ flex: 2 }}
+            >
+              Approve & Next
+            </Button>
+          </Tooltip>
+        )}
+      </ButtonGroup>
+    );
+  }
+
+  // Analysis variant - Verify actions
+  if (variant === 'analysis') {
+    return (
+      <ButtonGroup size={size} fullWidth={fullWidth} variant="contained">
+        {onVerify && (
+          <Tooltip title="Verify this event">
+            <Button
+              onClick={() => handleAction(onVerify)}
+              disabled={disabled || isLoading}
+              startIcon={isLoading ? <CircularProgress size={16} /> : <ApproveIcon />}
+              sx={{ flex: onVerifyAndNext ? 1 : 2 }}
+            >
+              Verify
+            </Button>
+          </Tooltip>
+        )}
+        {onVerifyAndNext && (
+          <Tooltip title="Verify this event and move to the next one">
+            <Button
+              onClick={() => handleAction(onVerifyAndNext)}
+              disabled={disabled || isLoading}
+              endIcon={<NextIcon />}
+              sx={{ flex: 2 }}
+            >
+              Verify & Next
+            </Button>
+          </Tooltip>
+        )}
+      </ButtonGroup>
+    );
+  }
+
+  // Generic variant - Save/Close actions
+  return (
+    <ButtonGroup size={size} fullWidth={fullWidth}>
+      {onClose && (
+        <Button
+          onClick={onClose}
+          disabled={disabled || isLoading}
+          startIcon={<CloseIcon />}
+          sx={{ flex: 1 }}
+        >
+          Cancel
+        </Button>
+      )}
+      {onSave && (
+        <Tooltip title="Save changes (Ctrl/Cmd+S)">
+          <Button
+            variant="outlined"
+            onClick={() => handleAction(onSave)}
+            disabled={disabled || isLoading}
+            startIcon={isLoading ? <CircularProgress size={16} /> : <SaveIcon />}
+            sx={{ flex: 1 }}
+          >
+            Save
+          </Button>
+        </Tooltip>
+      )}
+      {onSaveAndClose && (
+        <Tooltip title="Save and close (Ctrl/Cmd+Enter)">
+          <Button
+            variant="contained"
+            onClick={() => handleAction(onSaveAndClose)}
+            disabled={disabled || isLoading}
+            startIcon={isLoading ? <CircularProgress size={16} /> : <FastForwardIcon />}
+            sx={{ flex: 2 }}
+          >
+            Save & Close
+          </Button>
+        </Tooltip>
+      )}
+    </ButtonGroup>
+  );
 }
 
-const defaultActions: QuickAction[] = [
-  {
-    icon: <AddIcon />,
-    name: 'Add Event',
-    onClick: () => console.log('Add event clicked'),
-    color: 'primary',
-  },
-  {
-    icon: <RefreshIcon />,
-    name: 'Refresh',
-    onClick: () => window.location.reload(),
-    color: 'info',
-  },
-  {
-    icon: <SearchIcon />,
-    name: 'Search',
-    onClick: () => console.log('Search clicked'),
-    color: 'secondary',
-  },
-  {
-    icon: <DownloadIcon />,
-    name: 'Export',
-    onClick: () => console.log('Export clicked'),
-    color: 'success',
-  },
-];
+/**
+ * Quick action helper - navigate to next item in array
+ */
+export function getNextItem<T>(items: T[], currentId: string, getId: (item: T) => string): T | null {
+  const currentIndex = items.findIndex(item => getId(item) === currentId);
+  if (currentIndex === -1 || currentIndex >= items.length - 1) {
+    return null;
+  }
+  return items[currentIndex + 1];
+}
 
-const QuickActions: React.FC<QuickActionsProps> = ({
-  actions = defaultActions,
-  position = { bottom: 32, right: 32 },
-}) => {
-  const [open, setOpen] = useState(false);
-
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
-
-  return (
-    <>
-      <Backdrop
-        open={open}
-        sx={{
-          zIndex: (theme) => theme.zIndex.speedDial - 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          backdropFilter: 'blur(4px)',
-        }}
-      />
-      <SpeedDial
-        ariaLabel="Quick actions"
-        sx={{
-          position: 'fixed',
-          ...position,
-          '& .MuiSpeedDial-fab': {
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            '&:hover': {
-              background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
-            },
-          },
-        }}
-        icon={
-          <SpeedDialIcon
-            icon={<EditIcon />}
-            openIcon={<CloseIcon />}
-          />
-        }
-        onClose={handleClose}
-        onOpen={handleOpen}
-        open={open}
-      >
-        {actions.map((action) => (
-          <SpeedDialAction
-            key={action.name}
-            icon={action.icon}
-            tooltipTitle={action.name}
-            tooltipOpen
-            onClick={() => {
-              action.onClick();
-              handleClose();
-            }}
-            sx={{
-              backgroundColor: (theme) =>
-                action.color ? theme.palette[action.color].main : theme.palette.primary.main,
-              color: 'white',
-              '&:hover': {
-                backgroundColor: (theme) =>
-                  action.color ? theme.palette[action.color].dark : theme.palette.primary.dark,
-                transform: 'scale(1.1)',
-              },
-              transition: 'all 0.2s ease-in-out',
-              animation: open ? 'fadeIn 0.3s ease-in-out' : 'none',
-              '@keyframes fadeIn': {
-                '0%': {
-                  opacity: 0,
-                  transform: 'scale(0)',
-                },
-                '100%': {
-                  opacity: 1,
-                  transform: 'scale(1)',
-                },
-              },
-            }}
-          />
-        ))}
-      </SpeedDial>
-    </>
-  );
-};
-
-export default QuickActions;
+/**
+ * Quick action helper - navigate to previous item in array
+ */
+export function getPreviousItem<T>(items: T[], currentId: string, getId: (item: T) => string): T | null {
+  const currentIndex = items.findIndex(item => getId(item) === currentId);
+  if (currentIndex <= 0) {
+    return null;
+  }
+  return items[currentIndex - 1];
+}

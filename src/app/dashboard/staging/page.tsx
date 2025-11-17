@@ -66,6 +66,17 @@ import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 
+// New usability features
+import SmartDateInput from '@/components/SmartDateInput';
+import RecentLocationsInput from '@/components/RecentLocationsInput';
+import DuplicateWarning from '@/components/DuplicateWarning';
+import QuickActions from '@/components/QuickActions';
+import ValidationMessage from '@/components/ValidationMessage';
+import { useAutosave } from '@/hooks/useAutosave';
+import { useDuplicateCheck } from '@/hooks/useDuplicateCheck';
+import { useDialogShortcuts, useGlobalShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { validateField, VALIDATION_RULES } from '@/lib/validators';
+
 interface EventData {
   title: string;
   summary: string;
@@ -137,6 +148,21 @@ export default function EnhancedStagingEventsPage() {
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+
+  // Usability features hooks
+  const { hasDraft, restoreDraft, clearDraft } = useAutosave({
+    key: 'staging-create-event',
+    data: newEvent,
+    onRestore: (data) => setNewEvent(data),
+  });
+
+  const { duplicates, checking: checkingDuplicates } = useDuplicateCheck({
+    title: newEvent.title || '',
+    location: newEvent.location,
+    dateTime: newEvent.dateTime,
+    category: newEvent.category,
+    enabled: createDialog,
+  });
 
   const fetchEvents = async () => {
     try {
@@ -341,6 +367,9 @@ export default function EnhancedStagingEventsPage() {
 
       toast.success('Event created successfully');
 
+      // Clear autosaved draft
+      clearDraft();
+
       // Reset form and close dialog
       setNewEvent({
         title: '',
@@ -395,6 +424,37 @@ export default function EnhancedStagingEventsPage() {
       default: return 'default';
     }
   };
+
+  // Keyboard shortcuts for dialogs (after functions are defined)
+  useDialogShortcuts(
+    () => {
+      if (createDialog) handleCreateEvent();
+      if (editDialog) handleEdit();
+    },
+    () => {
+      setCreateDialog(false);
+      setEditDialog(false);
+      setViewDialog(false);
+    },
+    createDialog || editDialog || viewDialog
+  );
+
+  // Global keyboard shortcuts
+  useGlobalShortcuts(
+    fetchEvents,
+    () => setCreateDialog(true)
+  );
+
+  // Validation
+  const titleValidation = validateField(newEvent.title || '', [
+    VALIDATION_RULES.required('Title'),
+    VALIDATION_RULES.minLength(3, 'Title'),
+  ]);
+
+  const summaryValidation = validateField(newEvent.summary || '', [
+    VALIDATION_RULES.required('Summary'),
+    VALIDATION_RULES.minLength(10, 'Summary'),
+  ]);
 
   const columns: GridColDef[] = [
     {
@@ -958,14 +1018,42 @@ export default function EnhancedStagingEventsPage() {
         <DialogTitle>Create New Event</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 2 }}>
+            {/* Draft restore prompt */}
+            {hasDraft && (
+              <Alert
+                severity="info"
+                action={
+                  <>
+                    <Button size="small" onClick={() => restoreDraft()}>
+                      Restore
+                    </Button>
+                    <Button size="small" onClick={() => clearDraft()}>
+                      Discard
+                    </Button>
+                  </>
+                }
+              >
+                Draft found from earlier session
+              </Alert>
+            )}
+
             <TextField
               fullWidth
               required
               label="Event Title"
               value={newEvent.title || ''}
               onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+              error={!titleValidation.isValid}
               helperText="Provide a clear, concise title for the event"
             />
+            <ValidationMessage error={titleValidation.error} />
+
+            {/* Duplicate Detection Warning */}
+            <DuplicateWarning
+              duplicates={duplicates}
+              checking={checkingDuplicates}
+            />
+
             <TextField
               fullWidth
               required
@@ -974,8 +1062,10 @@ export default function EnhancedStagingEventsPage() {
               label="Event Summary"
               value={newEvent.summary || ''}
               onChange={(e) => setNewEvent({ ...newEvent, summary: e.target.value })}
+              error={!summaryValidation.isValid}
               helperText="Describe the event in detail"
             />
+            <ValidationMessage error={summaryValidation.error} />
             <FormControl fullWidth required>
               <InputLabel>Category</InputLabel>
               <Select
@@ -1008,55 +1098,44 @@ export default function EnhancedStagingEventsPage() {
               </Select>
             </FormControl>
             <Divider sx={{ my: 2 }}>Location Information</Divider>
-            <TextField
-              fullWidth
-              required
-              label="Location Description"
-              value={newEvent.location?.text?.eng || ''}
-              onChange={(e) => setNewEvent({
+
+            {/* Recent Locations Input */}
+            <RecentLocationsInput
+              locationValue={newEvent.location?.text?.eng || ''}
+              countryValue={newEvent.location?.country?.eng || ''}
+              onLocationChange={(value) => setNewEvent({
                 ...newEvent,
                 location: {
                   ...newEvent.location,
-                  text: { eng: e.target.value },
+                  text: { eng: value },
                   country: newEvent.location?.country || { eng: '' },
                   needsGeocoding: true
                 }
               })}
-              helperText="Describe the specific location (e.g., 'Downtown Manhattan, New York City')"
-            />
-            <TextField
-              fullWidth
-              required
-              label="Country"
-              value={newEvent.location?.country?.eng || ''}
-              onChange={(e) => setNewEvent({
+              onCountryChange={(value) => setNewEvent({
                 ...newEvent,
                 location: {
                   ...newEvent.location,
                   text: newEvent.location?.text || { eng: '' },
-                  country: { eng: e.target.value },
+                  country: { eng: value },
                   needsGeocoding: true
                 }
               })}
-              helperText="Enter the country name (e.g., 'United States')"
+              required
             />
-            <TextField
-              fullWidth
-              label="Event Date/Time"
-              type="datetime-local"
+
+            {/* Smart Date Input */}
+            <SmartDateInput
               value={(() => {
                 if (!newEvent.dateTime) return '';
                 const date = newEvent.dateTime.toDate ? newEvent.dateTime.toDate() : new Date();
                 return date.toISOString().slice(0, 16);
               })()}
-              onChange={(e) => {
-                const date = new Date(e.target.value);
+              onChange={(value) => {
+                const date = new Date(value);
                 setNewEvent({ ...newEvent, dateTime: Timestamp.fromDate(date) });
               }}
-              InputLabelProps={{
-                shrink: true,
-              }}
-              helperText="When did this event occur?"
+              label="Event Date & Time"
             />
             <Alert severity="info">
               This event will be created as a manual entry and marked as pending review.
@@ -1065,32 +1144,27 @@ export default function EnhancedStagingEventsPage() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => {
-            setCreateDialog(false);
-            // Reset form
-            setNewEvent({
-              title: '',
-              summary: '',
-              category: '',
-              severity: 'medium',
-              dateTime: Timestamp.now(),
-              location: {
-                text: { eng: '' },
-                country: { eng: '' },
-                needsGeocoding: true
-              }
-            });
-          }}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleCreateEvent}
-            startIcon={<AddIcon />}
-          >
-            Create Event
-          </Button>
+          <QuickActions
+            variant="generic"
+            onClose={() => {
+              setCreateDialog(false);
+              // Reset form
+              setNewEvent({
+                title: '',
+                summary: '',
+                category: '',
+                severity: 'medium',
+                dateTime: Timestamp.now(),
+                location: {
+                  text: { eng: '' },
+                  country: { eng: '' },
+                  needsGeocoding: true
+                }
+              });
+            }}
+            onSaveAndClose={handleCreateEvent}
+            fullWidth
+          />
         </DialogActions>
       </Dialog>
 
