@@ -37,6 +37,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  CircularProgress,
 } from '@mui/material';
 import {
   DataGrid,
@@ -305,6 +306,13 @@ export default function EnhancedAnalysisQueuePage() {
     }
   };
 
+  // Check if AI analysis is complete
+  const isAnalysisComplete = (event: AnalysisEvent): boolean => {
+    const hasRiskScore = typeof event.aiAnalysis?.impactAssessment?.severity === 'number';
+    const hasConfidence = typeof event.aiAnalysis?.riskClassification?.confidence === 'number';
+    return hasRiskScore && hasConfidence;
+  };
+
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'N/A';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -419,8 +427,24 @@ export default function EnhancedAnalysisQueuePage() {
     {
       field: 'verificationStatus',
       headerName: 'Status',
-      width: 130,
+      width: 150,
       renderCell: (params: GridRenderCellParams) => {
+        const event = params.row as AnalysisEvent;
+        const analysisComplete = isAnalysisComplete(event);
+
+        if (!analysisComplete) {
+          return (
+            <Tooltip title="Waiting for AI analysis to complete">
+              <Chip
+                label="AI Analyzing..."
+                size="small"
+                color="info"
+                icon={<CircularProgress size={12} />}
+              />
+            </Tooltip>
+          );
+        }
+
         const status = params.value || 'pending';
         const color = status === 'verified' ? 'success' :
                      status === 'failed' ? 'error' : 'warning';
@@ -463,12 +487,12 @@ export default function EnhancedAnalysisQueuePage() {
           <GridActionsCellItem
             key="verify"
             icon={<VerifyIcon />}
-            label="Verify"
+            label={!isAnalysisComplete(event) ? "Waiting for AI analysis..." : event.verificationStatus === 'verified' ? "Already verified" : "Verify"}
             onClick={() => {
               setSelectedEvent(event);
               setVerifyDialog(true);
             }}
-            disabled={event.verificationStatus === 'verified'}
+            disabled={event.verificationStatus === 'verified' || !isAnalysisComplete(event)}
           />,
           <GridActionsCellItem
             key="reject"
@@ -532,6 +556,7 @@ export default function EnhancedAnalysisQueuePage() {
           <Button
             variant="contained"
             startIcon={<RefreshIcon />}
+            onClick={fetchEvents}
             sx={{
               background: 'linear-gradient(135deg, #42A5F5 0%, #1E88E5 100%)',
               '&:hover': {
@@ -834,20 +859,30 @@ export default function EnhancedAnalysisQueuePage() {
           >
             Edit Analysis
           </Button>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => {
-              if (selectedEvent) {
-                setViewDialog(false);
-                setVerifyDialog(true);
-              }
-            }}
-            startIcon={<VerifyIcon />}
-            disabled={selectedEvent?.verificationStatus === 'verified'}
+          <Tooltip
+            title={
+              selectedEvent && !isAnalysisComplete(selectedEvent)
+                ? "Please wait for AI analysis to complete (risk score and confidence required)"
+                : ""
+            }
           >
-            Verify
-          </Button>
+            <span>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={() => {
+                  if (selectedEvent) {
+                    setViewDialog(false);
+                    setVerifyDialog(true);
+                  }
+                }}
+                startIcon={<VerifyIcon />}
+                disabled={selectedEvent?.verificationStatus === 'verified' || (!!selectedEvent && !isAnalysisComplete(selectedEvent))}
+              >
+                {selectedEvent && !isAnalysisComplete(selectedEvent) ? 'AI Analysis Pending...' : 'Verify'}
+              </Button>
+            </span>
+          </Tooltip>
         </DialogActions>
       </Dialog>
 
@@ -1145,9 +1180,16 @@ export default function EnhancedAnalysisQueuePage() {
       <Dialog open={verifyDialog} onClose={() => setVerifyDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Verify Event Analysis</DialogTitle>
         <DialogContent>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Verifying this event will move it to the Verified Events collection.
-          </Alert>
+          {selectedEvent && !isAnalysisComplete(selectedEvent) ? (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <strong>AI Analysis Incomplete!</strong><br />
+              This event is missing risk score or confidence values. Please wait for AI analysis to complete before verifying to prevent data loss.
+            </Alert>
+          ) : (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Verifying this event will move it to the Verified Events collection.
+            </Alert>
+          )}
           <TextField
             label="Verification Notes"
             multiline
@@ -1167,7 +1209,7 @@ export default function EnhancedAnalysisQueuePage() {
                 handleVerify(selectedEvent);
               }
             }}
-            disabled={!selectedEvent}
+            disabled={!selectedEvent || (!!selectedEvent && !isAnalysisComplete(selectedEvent))}
           />
         </DialogActions>
       </Dialog>
