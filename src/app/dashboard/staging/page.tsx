@@ -110,12 +110,16 @@ interface StagingEvent {
 const CATEGORIES = [
   'Cyber security',
   'Physical threats & violence',
+  'Armed Conflict',
+  'Terrorism',
   'Natural disasters',
   'Infrastructure & utilities',
   'Civil unrest & demonstrations',
   'Health & disease',
   'Transportation',
   'Environmental & industrial',
+  'Maritime Security',
+  'Organized Crime',
   'Political',
   'Economic'
 ];
