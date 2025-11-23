@@ -87,6 +87,12 @@ import EmptyState from '@/components/EmptyState';
 import QuickActions from '@/components/QuickActions';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 import { motion } from 'framer-motion';
+import dynamic from 'next/dynamic';
+
+const CountryIntelligenceModal = dynamic(
+  () => import('@/components/CountryIntelligenceModal'),
+  { ssr: false }
+);
 
 // New usability features
 import ValidationMessage from '@/components/ValidationMessage';
@@ -181,6 +187,8 @@ export default function EnhancedAnalysisQueuePage() {
   const [editedAnalysis, setEditedAnalysis] = useState<any>(null);
   const [tabValue, setTabValue] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [countryData, setCountryData] = useState<any>(null);
+  const [strategicDialog, setStrategicDialog] = useState(false);
 
   // Validation for edited analysis
   const riskScoreValidation = editedAnalysis ? validateField(editedAnalysis.impactAssessment?.severity, ANALYSIS_VALIDATORS.riskScore) : { isValid: true };
@@ -219,11 +227,11 @@ export default function EnhancedAnalysisQueuePage() {
   // Global keyboard shortcuts
   useGlobalShortcuts(fetchEvents, undefined);
 
-  // Set up real-time listener - ONLY IMMEDIATE EVENTS
+  // Set up real-time listener - ONLY STRATEGIC EVENTS
   useEffect(() => {
     const q = query(
       collection(db, 'analysis_queue'),
-      where('workflowType', '==', 'immediate')
+      where('workflowType', '==', 'strategic')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -246,6 +254,7 @@ export default function EnhancedAnalysisQueuePage() {
     return () => unsubscribe();
   }, []);
 
+  // STRATEGIC WORKFLOW: Verify and publish to strategic_intelligence_verified
   const handleVerify = async (event: AnalysisEvent) => {
     try {
       // Update analysis_queue verification status
@@ -256,8 +265,8 @@ export default function EnhancedAnalysisQueuePage() {
         verificationNotes: verificationNotes,
       });
 
-      // Create verified_events document with seenStatus
-      await setDoc(doc(db, 'verified_events', event.id), {
+      // Create strategic_intelligence_verified document
+      await setDoc(doc(db, 'strategic_intelligence_verified', event.id), {
         ...event,
         verificationStatus: 'verified',
         verifiedBy: user?.email,
@@ -266,16 +275,14 @@ export default function EnhancedAnalysisQueuePage() {
         seenStatus: false,
       });
 
-      toast.success('Event verified and moved to verified events');
-      setVerifyDialog(false);
+      toast.success('Strategic event verified and published to strategic intelligence');
+      setStrategicDialog(false);
       setVerificationNotes('');
     } catch (error) {
-      console.error('Error verifying event:', error);
-      toast.error('Failed to verify event');
+      console.error('Error verifying strategic event:', error);
+      toast.error('Failed to verify strategic event');
     }
   };
-
-  // Strategic verification removed - strategic events now in separate page
 
   const handleReject = async (event: AnalysisEvent) => {
     try {
@@ -484,26 +491,34 @@ export default function EnhancedAnalysisQueuePage() {
             key="view"
             icon={<ViewIcon />}
             label="View"
-            onClick={() => {
+            onClick={async () => {
               setSelectedEvent(event);
-              // All events here are immediate threats - show standard modal
-              setViewDialog(true);
-            }}
-          />,
-          <GridActionsCellItem
-            key="edit"
-            icon={<EditIcon />}
-            label="Edit Analysis"
-            onClick={() => {
-              setSelectedEvent(event);
-              setEditedAnalysis(JSON.parse(JSON.stringify(event.aiAnalysis || {})));
-              setEditDialog(true);
+
+              // All events here are strategic - check if analysis is complete
+              if (!event.countryIntelligence?.countryCode) {
+                toast.error('Strategic analysis not yet complete. Please wait a moment and refresh.');
+                return;
+              }
+
+              try {
+                const countryRef = doc(db, 'country_intelligence', event.countryIntelligence.countryCode);
+                const countrySnap = await getDoc(countryRef);
+                if (countrySnap.exists()) {
+                  setCountryData(countrySnap.data());
+                  setStrategicDialog(true);
+                } else {
+                  toast.error('Country intelligence data not found. The analysis may still be processing.');
+                }
+              } catch (error) {
+                console.error('Error fetching country data:', error);
+                toast.error('Failed to load country intelligence');
+              }
             }}
           />,
           <GridActionsCellItem
             key="verify"
             icon={<VerifyIcon />}
-            label={!isAnalysisComplete(event) ? "Waiting for AI analysis..." : event.verificationStatus === 'verified' ? "Already verified" : "Verify"}
+            label={!isAnalysisComplete(event) ? "Waiting for analysis..." : event.verificationStatus === 'verified' ? "Already published" : "Publish to Intelligence"}
             onClick={() => {
               setSelectedEvent(event);
               setVerifyDialog(true);
@@ -563,10 +578,10 @@ export default function EnhancedAnalysisQueuePage() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box>
             <Typography variant="h4" fontWeight="bold">
-              Analysis Queue
+              Strategic Analysis Queue
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Review and verify AI-analyzed events
+              Review strategic intelligence events with country-level analysis
             </Typography>
           </Box>
           <Button
@@ -1229,6 +1244,20 @@ export default function EnhancedAnalysisQueuePage() {
           />
         </DialogActions>
       </Dialog>
+
+      {/* Country Intelligence Modal (Strategic Events) */}
+      <CountryIntelligenceModal
+        open={strategicDialog}
+        onClose={() => {
+          setStrategicDialog(false);
+          setCountryData(null);
+        }}
+        countryData={countryData}
+        eventId={selectedEvent?.id || ''}
+        onVerify={() => {
+          if (selectedEvent) handleVerify(selectedEvent);
+        }}
+      />
     </Box>
   );
 }

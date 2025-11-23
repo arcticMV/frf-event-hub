@@ -32,8 +32,9 @@ service cloud.firestore {
         // Track who reviewed the event
         (request.resource.data.reviewStatus != resource.data.reviewStatus ?
           request.resource.data.reviewedBy == request.auth.token.email : true);
-      allow delete: if isAuthenticated() &&
-        (isAdmin() || resource.data.reviewStatus == 'rejected');
+      // Allow deletion by any authenticated user for flexibility
+      // Admins can delete anything, users can delete any event to clean up stuck/failed items
+      allow delete: if isAuthenticated();
     }
 
     // Analysis Queue collection rules
@@ -47,8 +48,9 @@ service cloud.firestore {
         // Track who verified the event
         (request.resource.data.verificationStatus != resource.data.verificationStatus ?
           request.resource.data.verifiedBy == request.auth.token.email : true);
-      allow delete: if isAuthenticated() &&
-        (isAdmin() || resource.data.verificationStatus == 'failed');
+      // Allow deletion by any authenticated user for flexibility
+      // Admins can delete anything, users can delete any event to clean up stuck/failed items
+      allow delete: if isAuthenticated();
     }
 
     // Verified Events collection rules
@@ -56,8 +58,10 @@ service cloud.firestore {
     match /verified_events/{eventId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() &&
-        // Must come from analysis queue with verified status
-        request.resource.data.keys().hasAll(['event', 'analysis', 'verifiedAt']);
+        // Must have required base fields
+        request.resource.data.keys().hasAll(['event', 'verifiedAt']) &&
+        // Must have either aiAnalysis (immediate workflow) OR countryIntelligence (strategic workflow)
+        (request.resource.data.keys().hasAny(['aiAnalysis', 'countryIntelligence']));
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -114,6 +118,26 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update: if false;
       allow delete: if false;
+    }
+
+    // Country Intelligence collection rules
+    // Strategic analysis data - read by authenticated users, primarily written by Cloud Functions
+    match /country_intelligence/{countryCode} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated(); // Cloud Functions will create
+      allow update: if isAuthenticated(); // Cloud Functions will update
+      allow delete: if isAdmin();
+    }
+
+    // Strategic Intelligence Verified collection rules
+    // Verified strategic events - separate from immediate threats
+    match /strategic_intelligence_verified/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        // Must have required base fields for strategic events
+        request.resource.data.keys().hasAll(['event', 'verifiedAt', 'countryIntelligence']);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }

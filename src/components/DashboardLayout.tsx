@@ -47,6 +47,7 @@ import {
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   People as PeopleIcon,
+  Timeline as TimelineIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 
@@ -114,7 +115,9 @@ const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Staging Events', icon: <InboxIcon />, path: '/dashboard/staging' },
   { text: 'Analysis Queue', icon: <AnalyticsIcon />, path: '/dashboard/analysis' },
+  { text: 'Strategic Analysis', icon: <TimelineIcon />, path: '/dashboard/strategic-analysis' },
   { text: 'Verified Events', icon: <VerifiedIcon />, path: '/dashboard/verified' },
+  { text: 'Strategic Intelligence', icon: <TimelineIcon />, path: '/dashboard/strategic' },
   { text: 'User Management', icon: <PeopleIcon />, path: '/dashboard/users' },
 ];
 
@@ -177,7 +180,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Divider />
 
       <List sx={{ px: 1.5, py: 1 }}>
-        {menuItems.slice(0, 4).map((item) => {
+        {menuItems.slice(0, 6).map((item) => {
           const isActive = pathname === item.path;
           return (
             <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>
@@ -223,7 +226,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Divider sx={{ mx: 2, my: 1 }} />
 
       <List sx={{ px: 1.5, py: 1 }}>
-        {menuItems.slice(4, 5).map((item) => {
+        {menuItems.slice(6).map((item) => {
           const isActive = pathname === item.path;
           return (
             <ListItem key={item.text} disablePadding sx={{ mb: 0.5 }}>

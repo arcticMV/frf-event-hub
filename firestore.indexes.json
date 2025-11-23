@@ -95,6 +95,38 @@
         { "fieldPath": "event.location.country.eng", "order": "ASCENDING" },
         { "fieldPath": "verifiedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "country_intelligence",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "aiAnalysis.overallRisk.score", "order": "DESCENDING" },
+        { "fieldPath": "lastUpdated", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "country_intelligence",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "region", "order": "ASCENDING" },
+        { "fieldPath": "totalEvents", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "strategic_intelligence_verified",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "countryIntelligence.countryCode", "order": "ASCENDING" },
+        { "fieldPath": "verifiedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "strategic_intelligence_verified",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "event.category", "order": "ASCENDING" },
+        { "fieldPath": "verifiedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

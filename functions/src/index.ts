@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions/v2';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
-import { onObjectFinalized } from 'firebase-functions/v2/storage';
+// import { onObjectFinalized } from 'firebase-functions/v2/storage';
 
 // Set the region for all functions
 const REGION = 'europe-west4';
@@ -58,27 +58,27 @@ export const onRegistrationUpdated = onDocumentUpdated(
   }
 );
 
-// Example Storage trigger - when an image is uploaded
-export const processUploadedImage = onObjectFinalized(
-  {
-    region: REGION,
-    bucket: 'event-images',
-  },
-  async (event) => {
-    const filePath = event.data.name;
-    const contentType = event.data.contentType;
+// Example Storage trigger - when an image is uploaded (commented out - configure bucket first)
+// export const processUploadedImage = onObjectFinalized(
+//   {
+//     region: REGION,
+//     bucket: 'event-images', // Configure your storage bucket first
+//   },
+//   async (event) => {
+//     const filePath = event.data.name;
+//     const contentType = event.data.contentType;
 
-    // Only process images
-    if (!contentType?.startsWith('image/')) {
-      return;
-    }
+//     // Only process images
+//     if (!contentType?.startsWith('image/')) {
+//       return;
+//     }
 
-    console.log('Processing uploaded image:', filePath);
+//     console.log('Processing uploaded image:', filePath);
 
-    // Add your image processing logic here
-    // (e.g., generate thumbnails, extract metadata, etc.)
-  }
-);
+//     // Add your image processing logic here
+//     // (e.g., generate thumbnails, extract metadata, etc.)
+//   }
+// );
 
 // Scheduled function example (runs every day at midnight Europe/Amsterdam time)
 export const dailyCleanup = functions.scheduler.onSchedule({
@@ -91,3 +91,6 @@ export const dailyCleanup = functions.scheduler.onSchedule({
   // Add your cleanup logic here
   // (e.g., delete old registrations, archive completed events, etc.)
 });
+
+// Strategic event analysis - processes events for country intelligence timeline
+export { processStrategicEvent } from './strategicAnalysis';

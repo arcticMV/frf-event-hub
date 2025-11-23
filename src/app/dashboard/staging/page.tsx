@@ -16,6 +16,7 @@ import {
   TextField,
   Select,
   MenuItem,
+  Menu,
   FormControl,
   InputLabel,
   Stack,
@@ -45,6 +46,8 @@ import {
   Download as DownloadIcon,
   FilterList as FilterIcon,
   Inbox as InboxIcon,
+  Warning as WarningIcon,
+  Timeline as TimelineIcon,
 } from '@mui/icons-material';
 import { db } from '@/lib/firebase/client';
 import {
@@ -150,8 +153,12 @@ export default function EnhancedStagingEventsPage() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
+  // Default to 'pending' to hide approved/rejected events (they're in analysis queue)
+  const [filterStatus, setFilterStatus] = useState('pending');
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [approvalMenuAnchor, setApprovalMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedEventForApproval, setSelectedEventForApproval] = useState<StagingEvent | null>(null);
+  const [workflowType, setWorkflowType] = useState<'immediate' | 'strategic' | ''>('');
 
   // Usability features hooks
   const { hasDraft, restoreDraft, clearDraft } = useAutosave({
@@ -229,6 +236,38 @@ export default function EnhancedStagingEventsPage() {
     }
   };
 
+  const handleApproveWithWorkflow = async (workflowType: 'immediate' | 'strategic') => {
+    if (!selectedEventForApproval) return;
+
+    try {
+      // Use different reviewStatus to prevent race condition
+      // Immediate: 'approved' → triggers existing processApprovedEvent
+      // Strategic: 'approved_strategic' → triggers only processStrategicEvent
+      const reviewStatus = workflowType === 'immediate' ? 'approved' : 'approved_strategic';
+
+      await updateDoc(doc(db, 'staging_events', selectedEventForApproval.id), {
+        reviewStatus: reviewStatus,
+        workflowType: workflowType,
+        reviewedBy: user?.email,
+        reviewedAt: serverTimestamp(),
+        reviewNotes: reviewNotes,
+      });
+
+      if (workflowType === 'immediate') {
+        toast.success('Event approved - Immediate threat workflow');
+      } else {
+        toast.success('Event approved - Strategic analysis initiated');
+      }
+
+      setApprovalMenuAnchor(null);
+      setSelectedEventForApproval(null);
+      fetchEvents();
+    } catch (error) {
+      console.error('Error approving event:', error);
+      toast.error('Failed to approve event');
+    }
+  };
+
   const handleReject = async (event: StagingEvent) => {
     try {
       await updateDoc(doc(db, 'staging_events', event.id), {
@@ -298,18 +337,29 @@ export default function EnhancedStagingEventsPage() {
   };
 
   const handleEditAndApprove = async () => {
-    if (!selectedEvent || !editedEvent) return;
+    if (!selectedEvent || !editedEvent || !workflowType) return;
 
     try {
+      // Use different reviewStatus to prevent race condition
+      const reviewStatus = workflowType === 'immediate' ? 'approved' : 'approved_strategic';
+
       await updateDoc(doc(db, 'staging_events', selectedEvent.id), {
         event: editedEvent,
-        reviewStatus: 'approved',
+        reviewStatus: reviewStatus,
+        workflowType: workflowType,
         reviewedBy: user?.email,
         reviewedAt: serverTimestamp(),
         reviewNotes: reviewNotes,
       });
-      toast.success('Event updated and approved successfully');
+
+      if (workflowType === 'immediate') {
+        toast.success('Event updated and approved - Immediate threat workflow');
+      } else {
+        toast.success('Event updated and approved - Strategic analysis initiated');
+      }
+
       setEditDialog(false);
+      setWorkflowType(''); // Reset workflow type
       fetchEvents();
     } catch (error) {
       console.error('Error updating and approving event:', error);
@@ -567,14 +617,19 @@ export default function EnhancedStagingEventsPage() {
                   needsGeocoding: event.event.location?.needsGeocoding || false
                 }
               });
+              setWorkflowType(''); // Reset workflow type when opening edit dialog
               setEditDialog(true);
             }}
           />,
           <GridActionsCellItem
             key="approve"
             icon={<ApproveIcon />}
-            label="Approve"
-            onClick={() => handleApprove(event)}
+            label="Approve As..."
+            onClick={(e) => {
+              e.stopPropagation();
+              setApprovalMenuAnchor(e.currentTarget as HTMLElement);
+              setSelectedEventForApproval(event);
+            }}
             disabled={event.reviewStatus !== 'pending'}
             showInMenu={false}
           />,
@@ -873,6 +928,38 @@ export default function EnhancedStagingEventsPage() {
         </Paper>
       </motion.div>
 
+      {/* Approval Workflow Selector Menu */}
+      <Menu
+        anchorEl={approvalMenuAnchor}
+        open={Boolean(approvalMenuAnchor)}
+        onClose={() => setApprovalMenuAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuItem onClick={() => handleApproveWithWorkflow('immediate')}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <WarningIcon sx={{ color: 'error.main' }} />
+            <Box>
+              <Typography variant="body2" fontWeight="bold">Immediate Threat</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Current workflow → Real-time analysis
+              </Typography>
+            </Box>
+          </Box>
+        </MenuItem>
+        <MenuItem onClick={() => handleApproveWithWorkflow('strategic')}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TimelineIcon sx={{ color: 'info.main' }} />
+            <Box>
+              <Typography variant="body2" fontWeight="bold">Strategic Event</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Country timeline → Long-term analysis
+              </Typography>
+            </Box>
+          </Box>
+        </MenuItem>
+      </Menu>
+
       {/* View Dialog */}
       <Dialog open={viewDialog} onClose={() => setViewDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>Event Details</DialogTitle>
@@ -991,6 +1078,43 @@ export default function EnhancedStagingEventsPage() {
                   }
                 })}
               />
+              <Divider sx={{ my: 2 }}>Workflow Type (Required for Approval)</Divider>
+              <FormControl fullWidth required error={!workflowType}>
+                <InputLabel>Workflow Type</InputLabel>
+                <Select
+                  value={workflowType}
+                  onChange={(e) => setWorkflowType(e.target.value as 'immediate' | 'strategic')}
+                  label="Workflow Type"
+                >
+                  <MenuItem value="immediate">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <WarningIcon sx={{ color: 'error.main' }} />
+                      <Box>
+                        <Typography variant="body2" fontWeight="bold">Immediate Threat</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Current workflow → Real-time analysis
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="strategic">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <TimelineIcon sx={{ color: 'info.main' }} />
+                      <Box>
+                        <Typography variant="body2" fontWeight="bold">Strategic Event</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Country timeline → Long-term analysis
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </MenuItem>
+                </Select>
+                {!workflowType && (
+                  <Typography variant="caption" color="error" sx={{ mt: 0.5 }}>
+                    You must select a workflow type to approve this event
+                  </Typography>
+                )}
+              </FormControl>
               <TextField
                 fullWidth
                 label="Review Notes"
@@ -1006,14 +1130,21 @@ export default function EnhancedStagingEventsPage() {
         <DialogActions>
           <Button onClick={() => setEditDialog(false)}>Cancel</Button>
           <Button variant="outlined" onClick={handleEdit}>Save Changes</Button>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleEditAndApprove}
-            startIcon={<ApproveIcon />}
+          <Tooltip
+            title={!workflowType ? "Please select a workflow type to approve" : ""}
           >
-            Save Changes and Approve
-          </Button>
+            <span>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={handleEditAndApprove}
+                startIcon={<ApproveIcon />}
+                disabled={!workflowType}
+              >
+                Save Changes and Approve
+              </Button>
+            </span>
+          </Tooltip>
         </DialogActions>
       </Dialog>
 

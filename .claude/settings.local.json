@@ -1,23 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx create-next-app:*)",
-      "Bash(npm init:*)",
-      "Bash(npm install:*)",
-      "Bash(npx tailwindcss init:*)",
       "Bash(npm run lint)",
       "Bash(npx tsc:*)",
+      "Bash(nul)",
       "Bash(npm run build:*)",
-      "Bash(npm ls:*)",
-      "Bash(git check-ignore:*)",
-      "Bash(firebase apphosting:secrets:set:*)",
-      "Bash(firebase apphosting:secrets:grantaccess:*)",
-      "Bash(firebase apphosting:backends:list:*)",
-      "Bash(firebase apphosting:secrets:describe:*)",
-      "Bash(firebase firestore:get:*)",
-      "Bash(firebase firestore:databases:*)",
-      "Bash(node:*)",
-      "Bash(firebase deploy:*)"
+      "Bash(firebase deploy:*)",
+      "Bash(npx eslint:*)",
+      "Bash(firebase functions:list:*)",
+      "Bash(firebase functions:log:*)"
     ],
     "deny": [],
     "ask": []
