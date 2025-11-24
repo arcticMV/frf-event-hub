@@ -29,6 +29,7 @@ import {
   useTheme,
   useMediaQuery,
 } from '@mui/material';
+import LiquidGlassButton from '@/components/LiquidGlassButton';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
@@ -289,17 +290,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Typography>
             </Box>
           </Box>
-          <Button
+          <LiquidGlassButton
             fullWidth
             size="small"
+            liquidVariant="danger"
             startIcon={<LogoutIcon />}
             onClick={logout}
             sx={{ mt: 1 }}
-            variant="outlined"
-            color="error"
           >
             Sign Out
-          </Button>
+          </LiquidGlassButton>
         </Paper>
       </Box>
     </>

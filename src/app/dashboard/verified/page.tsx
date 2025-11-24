@@ -72,6 +72,7 @@ import GlassCard from '@/components/GlassCard';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
+import LiquidGlassButton from '@/components/LiquidGlassButton';
 import { motion } from 'framer-motion';
 
 // New usability features
@@ -514,18 +515,18 @@ export default function EnhancedVerifiedEventsPage() {
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
-            <Button
-              variant={viewMode === 'cards' ? 'contained' : 'outlined'}
+            <LiquidGlassButton
+              liquidVariant={viewMode === 'cards' ? 'primary' : 'neutral'}
               onClick={() => setViewMode('cards')}
             >
               Card View
-            </Button>
-            <Button
-              variant={viewMode === 'table' ? 'contained' : 'outlined'}
+            </LiquidGlassButton>
+            <LiquidGlassButton
+              liquidVariant={viewMode === 'table' ? 'primary' : 'neutral'}
               onClick={() => setViewMode('table')}
             >
               Table View
-            </Button>
+            </LiquidGlassButton>
           </Stack>
         </Box>
       </motion.div>
@@ -676,9 +677,9 @@ export default function EnhancedVerifiedEventsPage() {
                         </Typography>
                       </Box>
                     </Stack>
-                    <Button
+                    <LiquidGlassButton
                       fullWidth
-                      variant="text"
+                      liquidVariant="neutral"
                       sx={{ mt: 2 }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -686,7 +687,7 @@ export default function EnhancedVerifiedEventsPage() {
                       }}
                     >
                       View Full Intelligence
-                    </Button>
+                    </LiquidGlassButton>
                   </CardContent>
                 </GlassCard>
               </motion.div>

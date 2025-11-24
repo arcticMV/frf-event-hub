@@ -19,6 +19,7 @@ import {
   Refresh as RefreshIcon,
   ArrowForward as ArrowIcon,
 } from '@mui/icons-material';
+import LiquidGlassButton from '@/components/LiquidGlassButton';
 import { db } from '@/lib/firebase/client';
 import {
   collection,
@@ -449,19 +450,15 @@ export default function DashboardPage() {
               Real-time monitoring of event collection, analysis, and verification
             </Typography>
           </Box>
-          <Button
-            variant="contained"
+          <LiquidGlassButton
+            liquidVariant="primary"
             startIcon={<RefreshIcon />}
             onClick={fetchStats}
-            sx={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
-              },
-            }}
+            specularHighlights={true}
+            glassIntensity="medium"
           >
             Refresh
-          </Button>
+          </LiquidGlassButton>
         </Box>
       </motion.div>
 
@@ -501,15 +498,15 @@ export default function DashboardPage() {
                   <Chip label={stats.staging.critical} size="small" color="error" />
                 </Box>
               </Stack>
-              <Button
+              <LiquidGlassButton
                 fullWidth
-                variant="text"
+                liquidVariant="neutral"
                 endIcon={<ArrowIcon />}
-                sx={{ mt: 2 }}
                 onClick={() => router.push('/dashboard/staging')}
+                sx={{ mt: 2 }}
               >
                 View Staging
-              </Button>
+              </LiquidGlassButton>
             </CardContent>
           </GlassCard>
         </Zoom>
@@ -552,15 +549,15 @@ export default function DashboardPage() {
                   />
                 </Box>
               </Stack>
-              <Button
+              <LiquidGlassButton
                 fullWidth
-                variant="text"
+                liquidVariant="neutral"
                 endIcon={<ArrowIcon />}
-                sx={{ mt: 2 }}
                 onClick={() => router.push('/dashboard/analysis')}
+                sx={{ mt: 2 }}
               >
                 View Analysis
-              </Button>
+              </LiquidGlassButton>
             </CardContent>
           </GlassCard>
         </Zoom>
@@ -599,15 +596,15 @@ export default function DashboardPage() {
                   <Chip label={stats.verified.high} size="small" color="warning" />
                 </Box>
               </Stack>
-              <Button
+              <LiquidGlassButton
                 fullWidth
-                variant="text"
+                liquidVariant="neutral"
                 endIcon={<ArrowIcon />}
-                sx={{ mt: 2 }}
                 onClick={() => router.push('/dashboard/verified')}
+                sx={{ mt: 2 }}
               >
                 View Verified
-              </Button>
+              </LiquidGlassButton>
             </CardContent>
           </GlassCard>
         </Zoom>

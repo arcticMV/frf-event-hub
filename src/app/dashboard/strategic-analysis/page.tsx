@@ -86,6 +86,7 @@ import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
 import QuickActions from '@/components/QuickActions';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
+import LiquidGlassButton from '@/components/LiquidGlassButton';
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
 
@@ -584,19 +585,14 @@ export default function EnhancedAnalysisQueuePage() {
               Review strategic intelligence events with country-level analysis
             </Typography>
           </Box>
-          <Button
-            variant="contained"
+          <LiquidGlassButton
+            liquidVariant="info"
             startIcon={<RefreshIcon />}
             onClick={fetchEvents}
-            sx={{
-              background: 'linear-gradient(135deg, #42A5F5 0%, #1E88E5 100%)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #1E88E5 0%, #42A5F5 100%)',
-              },
-            }}
+            specularHighlights={true}
           >
             Refresh
-          </Button>
+          </LiquidGlassButton>
         </Box>
       </motion.div>
 

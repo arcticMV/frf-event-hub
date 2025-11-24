@@ -68,6 +68,7 @@ import GlassCard from '@/components/GlassCard';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
+import LiquidGlassButton from '@/components/LiquidGlassButton';
 
 // New usability features
 import SmartDateInput from '@/components/SmartDateInput';
@@ -725,34 +726,24 @@ export default function EnhancedStagingEventsPage() {
                 </Button>
               </Fade>
             )}
-            <Button
-              variant="contained"
+            <LiquidGlassButton
+              liquidVariant="success"
               fullWidth
               startIcon={<AddIcon />}
               onClick={() => setCreateDialog(true)}
-              sx={{
-                background: 'linear-gradient(135deg, #66BB6A 0%, #4CAF50 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%)',
-                },
-              }}
+              specularHighlights={true}
             >
               New Event
-            </Button>
-            <Button
-              variant="contained"
+            </LiquidGlassButton>
+            <LiquidGlassButton
+              liquidVariant="warning"
               fullWidth
               startIcon={<RefreshIcon />}
               onClick={fetchEvents}
-              sx={{
-                background: 'linear-gradient(135deg, #FFA726 0%, #FB8C00 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #FB8C00 0%, #FFA726 100%)',
-                },
-              }}
+              specularHighlights={true}
             >
               Refresh
-            </Button>
+            </LiquidGlassButton>
           </Stack>
         </Box>
       </motion.div>

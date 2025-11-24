@@ -10,12 +10,17 @@ import { AnimatedLineChart, AnimatedAreaChart, AnimatedBarChart, AnimatedPieChar
 import QuickActions from '@/components/QuickActions';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 import { useThemeMode } from '@/components/ThemeProvider';
+import LiquidGlassButton from '@/components/LiquidGlassButton';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import {
   Refresh as RefreshIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
+  Add as AddIcon,
+  Check as CheckIcon,
+  Delete as DeleteIcon,
+  CloudUpload as CloudUploadIcon,
 } from '@mui/icons-material';
 
 export default function DemoPage() {
@@ -96,9 +101,54 @@ export default function DemoPage() {
         </Box>
       </motion.div>
 
+      {/* Liquid Glass Buttons Demo */}
+      <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mt: 4, mb: 2 }}>
+        1. Apple Liquid Glass Buttons (iOS 26 / macOS Tahoe 26)
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Based on official Apple design language with refraction, reflection, and specular highlights.
+        <a
+          href="https://www.apple.com/newsroom/2025/06/apple-introduces-a-delightful-and-elegant-new-software-design/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ marginLeft: 4, color: 'inherit', textDecoration: 'underline' }}
+        >
+          Learn more
+        </a>
+      </Typography>
+      <GlassCard sx={{ mb: 4 }}>
+        <Box sx={{ p: 3 }}>
+          <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+            Color Variants (Hover to see effects)
+          </Typography>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+              <LiquidGlassButton liquidVariant="primary" startIcon={<AddIcon />}>
+                Primary (Indigo)
+              </LiquidGlassButton>
+              <LiquidGlassButton liquidVariant="secondary" startIcon={<RefreshIcon />}>
+                Secondary (Emerald)
+              </LiquidGlassButton>
+              <LiquidGlassButton liquidVariant="success" startIcon={<CheckIcon />}>
+                Success (Green)
+              </LiquidGlassButton>
+              <LiquidGlassButton liquidVariant="warning" startIcon={<RefreshIcon />}>
+                Warning (Orange)
+              </LiquidGlassButton>
+              <LiquidGlassButton liquidVariant="danger" startIcon={<DeleteIcon />}>
+                Danger (Red)
+              </LiquidGlassButton>
+            </Stack>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}>
+              ✨ Features: Translucent glass with refraction • Real-time specular highlights • Content-aware coloring • Dynamic morphing
+            </Typography>
+          </Stack>
+        </Box>
+      </GlassCard>
+
       {/* Glassmorphism Cards Demo */}
       <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mt: 4, mb: 2 }}>
-        1. Glassmorphism Cards with Micro-interactions
+        2. Glassmorphism Cards with Micro-interactions
       </Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 3, mb: 4 }}>
         <GlassCard>
@@ -129,7 +179,7 @@ export default function DemoPage() {
 
       {/* Charts Demo */}
       <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mt: 4, mb: 2 }}>
-        2. Interactive Data Visualizations
+        3. Interactive Data Visualizations
       </Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 3, mb: 4 }}>
         <AnimatedLineChart data={lineData} title="Event Trends" color="#6366F1" />
@@ -140,7 +190,7 @@ export default function DemoPage() {
 
       {/* Progressive Disclosure Demo */}
       <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mt: 4, mb: 2 }}>
-        3. Progressive Disclosure Pattern
+        4. Progressive Disclosure Pattern
       </Typography>
       <Box sx={{ mb: 4 }}>
         <ProgressiveDisclosure
@@ -170,7 +220,7 @@ export default function DemoPage() {
 
       {/* Loading Skeletons Demo */}
       <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mt: 4, mb: 2 }}>
-        4. Loading Skeletons
+        5. Loading Skeletons
       </Typography>
       <Box sx={{ mb: 4 }}>
         <Button
@@ -188,7 +238,7 @@ export default function DemoPage() {
 
       {/* Empty State Demo */}
       <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mt: 4, mb: 2 }}>
-        5. Empty States
+        6. Empty States
       </Typography>
       <Box sx={{ mb: 4 }}>
         <Button
@@ -214,7 +264,7 @@ export default function DemoPage() {
 
       {/* Toast Notifications Demo */}
       <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mt: 4, mb: 2 }}>
-        6. Toast Notifications
+        7. Toast Notifications
       </Typography>
       <Stack direction="row" spacing={2} sx={{ mb: 4 }}>
         <Button
@@ -242,7 +292,7 @@ export default function DemoPage() {
 
       {/* Quick Actions - Already visible as floating button */}
       <Typography variant="h5" gutterBottom fontWeight="bold" sx={{ mt: 4, mb: 2 }}>
-        7. Quick Actions SpeedDial
+        8. Quick Actions SpeedDial
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
         Look at the bottom-right corner for the floating action button with quick actions!

@@ -53,6 +53,7 @@ import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
 import EnhancedFilters, { FilterValues } from '@/components/EnhancedFilters';
 import CountryIntelligenceModal from '@/components/CountryIntelligenceModal';
+import LiquidGlassButton from '@/components/LiquidGlassButton';
 import { useContextPreservation } from '@/hooks/useContextPreservation';
 import { useGlobalShortcuts } from '@/hooks/useKeyboardShortcuts';
 
@@ -389,19 +390,14 @@ export default function StrategicIntelligencePage() {
                 Table
               </ToggleButton>
             </ToggleButtonGroup>
-            <Button
-              variant="contained"
+            <LiquidGlassButton
+              liquidVariant="info"
               startIcon={<RefreshIcon />}
               onClick={fetchEvents}
-              sx={{
-                background: 'linear-gradient(135deg, #42A5F5 0%, #1E88E5 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #1E88E5 0%, #42A5F5 100%)',
-                },
-              }}
+              specularHighlights={true}
             >
               Refresh
-            </Button>
+            </LiquidGlassButton>
           </Stack>
         </Box>
       </motion.div>

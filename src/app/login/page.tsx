@@ -25,6 +25,7 @@ import Link from 'next/link';
 import { styled, keyframes } from '@mui/material/styles';
 import ParticleBackground from '@/components/ParticleBackground';
 import AnimatedGradient from '@/components/AnimatedGradient';
+import LiquidGlassButton from '@/components/LiquidGlassButton';
 import { motion } from 'framer-motion';
 
 const float = keyframes`
@@ -106,34 +107,7 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
   },
 }));
 
-const GradientButton = styled(Button)(({ theme }) => ({
-  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  backgroundSize: '200% 200%',
-  transition: 'all 0.3s ease',
-  position: 'relative',
-  overflow: 'hidden',
-  '&:hover': {
-    backgroundPosition: 'right center',
-    transform: 'translateY(-2px)',
-    boxShadow: '0 8px 24px rgba(102, 126, 234, 0.4)',
-  },
-  '&:active': {
-    transform: 'translateY(0)',
-  },
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: '-100%',
-    width: '100%',
-    height: '100%',
-    background: 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent)',
-    transition: 'left 0.5s',
-  },
-  '&:hover::before': {
-    left: '100%',
-  },
-}));
+// GradientButton replaced with LiquidGlassButton for Apple design language
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -268,22 +242,23 @@ export default function LoginPage() {
                   </Link>
                 </Box>
 
-                <GradientButton
+                <LiquidGlassButton
                   type="submit"
                   fullWidth
-                  variant="contained"
+                  liquidVariant="primary"
                   size="large"
                   disabled={loading}
+                  specularHighlights={true}
+                  glassIntensity="medium"
                   sx={{
                     mt: 2,
                     py: 1.5,
                     fontSize: '1rem',
                     fontWeight: 600,
-                    textTransform: 'none',
                   }}
                 >
                   {loading ? 'Signing in...' : 'Sign In'}
-                </GradientButton>
+                </LiquidGlassButton>
               </Box>
             </motion.div>
           </StyledCard>
