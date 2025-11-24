@@ -31,6 +31,7 @@ interface BaseChartProps {
   data: ChartData[];
   title?: string;
   height?: number;
+  disableWrapper?: boolean;
 }
 
 interface LineChartProps extends BaseChartProps {
@@ -44,9 +45,48 @@ export const AnimatedLineChart: React.FC<LineChartProps> = ({
   height = 300,
   dataKey = 'value',
   color,
+  disableWrapper = false,
 }) => {
   const theme = useTheme();
   const chartColor = color || theme.palette.primary.main;
+
+  const ChartContent = (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+        <XAxis dataKey="name" stroke={theme.palette.text.secondary} />
+        <YAxis stroke={theme.palette.text.secondary} />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: theme.palette.background.paper,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 8,
+          }}
+        />
+        <Line
+          type="monotone"
+          dataKey={dataKey}
+          stroke={chartColor}
+          strokeWidth={3}
+          dot={{ fill: chartColor, strokeWidth: 2 }}
+          activeDot={{ r: 8 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+
+  if (disableWrapper) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        style={{ width: '100%', height }}
+      >
+        {ChartContent}
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -60,28 +100,7 @@ export const AnimatedLineChart: React.FC<LineChartProps> = ({
             {title}
           </Typography>
         )}
-        <ResponsiveContainer width="100%" height={height}>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-            <XAxis dataKey="name" stroke={theme.palette.text.secondary} />
-            <YAxis stroke={theme.palette.text.secondary} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: theme.palette.background.paper,
-                border: `1px solid ${theme.palette.divider}`,
-                borderRadius: 8,
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey={dataKey}
-              stroke={chartColor}
-              strokeWidth={3}
-              dot={{ fill: chartColor, strokeWidth: 2 }}
-              activeDot={{ r: 8 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        {ChartContent}
       </Paper>
     </motion.div>
   );
@@ -100,10 +119,56 @@ export const AnimatedAreaChart: React.FC<AreaChartProps> = ({
   dataKey = 'value',
   color,
   gradient = true,
+  disableWrapper = false,
 }) => {
   const theme = useTheme();
   const chartColor = color || theme.palette.primary.main;
   const gradientId = `gradient-${Math.random().toString(36).substr(2, 9)}`;
+
+  const ChartContent = (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data}>
+        {gradient && (
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={chartColor} stopOpacity={0.8} />
+              <stop offset="95%" stopColor={chartColor} stopOpacity={0.1} />
+            </linearGradient>
+          </defs>
+        )}
+        <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+        <XAxis dataKey="name" stroke={theme.palette.text.secondary} />
+        <YAxis stroke={theme.palette.text.secondary} />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: theme.palette.background.paper,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 8,
+          }}
+        />
+        <Area
+          type="monotone"
+          dataKey={dataKey}
+          stroke={chartColor}
+          strokeWidth={2}
+          fill={gradient ? `url(#${gradientId})` : chartColor}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+
+  if (disableWrapper) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        style={{ width: '100%', height }}
+      >
+        {ChartContent}
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -117,35 +182,7 @@ export const AnimatedAreaChart: React.FC<AreaChartProps> = ({
             {title}
           </Typography>
         )}
-        <ResponsiveContainer width="100%" height={height}>
-          <AreaChart data={data}>
-            {gradient && (
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={chartColor} stopOpacity={0.8} />
-                  <stop offset="95%" stopColor={chartColor} stopOpacity={0.1} />
-                </linearGradient>
-              </defs>
-            )}
-            <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-            <XAxis dataKey="name" stroke={theme.palette.text.secondary} />
-            <YAxis stroke={theme.palette.text.secondary} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: theme.palette.background.paper,
-                border: `1px solid ${theme.palette.divider}`,
-                borderRadius: 8,
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey={dataKey}
-              stroke={chartColor}
-              strokeWidth={2}
-              fill={gradient ? `url(#${gradientId})` : chartColor}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {ChartContent}
       </Paper>
     </motion.div>
   );
@@ -162,6 +199,7 @@ export const AnimatedBarChart: React.FC<BarChartProps> = ({
   height = 300,
   dataKey = 'value',
   colors,
+  disableWrapper = false,
 }) => {
   const theme = useTheme();
   const defaultColors = [
@@ -172,6 +210,41 @@ export const AnimatedBarChart: React.FC<BarChartProps> = ({
     theme.palette.error.main,
   ];
   const chartColors = colors || defaultColors;
+
+  const ChartContent = (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+        <XAxis dataKey="name" stroke={theme.palette.text.secondary} />
+        <YAxis stroke={theme.palette.text.secondary} />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: theme.palette.background.paper,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 8,
+          }}
+        />
+        <Bar dataKey={dataKey} radius={[8, 8, 0, 0]}>
+          {data.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+
+  if (disableWrapper) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5 }}
+        style={{ width: '100%', height }}
+      >
+        {ChartContent}
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -185,25 +258,7 @@ export const AnimatedBarChart: React.FC<BarChartProps> = ({
             {title}
           </Typography>
         )}
-        <ResponsiveContainer width="100%" height={height}>
-          <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-            <XAxis dataKey="name" stroke={theme.palette.text.secondary} />
-            <YAxis stroke={theme.palette.text.secondary} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: theme.palette.background.paper,
-                border: `1px solid ${theme.palette.divider}`,
-                borderRadius: 8,
-              }}
-            />
-            <Bar dataKey={dataKey} radius={[8, 8, 0, 0]}>
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        {ChartContent}
       </Paper>
     </motion.div>
   );
@@ -222,6 +277,7 @@ export const AnimatedPieChart: React.FC<PieChartProps> = ({
   innerRadius = 0,
   outerRadius = 100,
   colors,
+  disableWrapper = false,
 }) => {
   const theme = useTheme();
   const defaultColors = [
@@ -233,6 +289,48 @@ export const AnimatedPieChart: React.FC<PieChartProps> = ({
     theme.palette.info.main,
   ];
   const chartColors = colors || defaultColors;
+
+  const ChartContent = (
+    <ResponsiveContainer width="100%" height={height}>
+      <PieChart>
+        <Pie
+          data={data}
+          cx="50%"
+          cy="50%"
+          innerRadius={innerRadius}
+          outerRadius={outerRadius}
+          paddingAngle={2}
+          dataKey="value"
+          label
+        >
+          {data.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+          ))}
+        </Pie>
+        <Tooltip
+          contentStyle={{
+            backgroundColor: theme.palette.background.paper,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 8,
+          }}
+        />
+        <Legend />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+
+  if (disableWrapper) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        style={{ width: '100%', height }}
+      >
+        {ChartContent}
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -246,32 +344,7 @@ export const AnimatedPieChart: React.FC<PieChartProps> = ({
             {title}
           </Typography>
         )}
-        <ResponsiveContainer width="100%" height={height}>
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              innerRadius={innerRadius}
-              outerRadius={outerRadius}
-              paddingAngle={2}
-              dataKey="value"
-              label
-            >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{
-                backgroundColor: theme.palette.background.paper,
-                border: `1px solid ${theme.palette.divider}`,
-                borderRadius: 8,
-              }}
-            />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
+        {ChartContent}
       </Paper>
     </motion.div>
   );

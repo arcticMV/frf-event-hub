@@ -2,44 +2,30 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Card,
   CardContent,
   Typography,
   Box,
   Paper,
   Chip,
-  CircularProgress,
-  IconButton,
   Stack,
   Divider,
   Button,
-  Fade,
-  Grow,
   Zoom,
 } from '@mui/material';
 import {
   Inbox as InboxIcon,
   Analytics as AnalyticsIcon,
   CheckCircle as VerifiedIcon,
-  Warning as WarningIcon,
   Refresh as RefreshIcon,
   ArrowForward as ArrowIcon,
-  TrendingUp as TrendingUpIcon,
-  Schedule as ScheduleIcon,
-  Assessment as AssessmentIcon,
-  Add as AddIcon,
-  Search as SearchIcon,
-  Download as DownloadIcon,
 } from '@mui/icons-material';
 import { db } from '@/lib/firebase/client';
 import {
   collection,
   query,
-  where,
   getDocs,
   orderBy,
   limit,
-  Timestamp,
   onSnapshot,
 } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -47,7 +33,7 @@ import toast from 'react-hot-toast';
 import GlassCard from '@/components/GlassCard';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
-import { AnimatedLineChart, AnimatedAreaChart, AnimatedBarChart, AnimatedPieChart } from '@/components/Charts';
+import { AnimatedAreaChart, AnimatedBarChart, AnimatedPieChart } from '@/components/Charts';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 import { motion } from 'framer-motion';
 
@@ -688,6 +674,7 @@ export default function DashboardPage() {
                   title=""
                   height={220}
                   outerRadius={70}
+                  disableWrapper={true}
                 />
               </Box>
             </Paper>
@@ -753,8 +740,8 @@ export default function DashboardPage() {
                         height: 40,
                         borderRadius: 1,
                         background: event.event?.severity === 'critical' ? '#EF4444' :
-                                   event.event?.severity === 'high' ? '#F59E0B' :
-                                   event.event?.severity === 'medium' ? '#3B82F6' : '#10B981',
+                          event.event?.severity === 'high' ? '#F59E0B' :
+                            event.event?.severity === 'medium' ? '#3B82F6' : '#10B981',
                       }}
                     />
                     <Box>
@@ -778,8 +765,6 @@ export default function DashboardPage() {
           </Stack>
         }
       />
-
-      {/* Quick Actions SpeedDial */}
     </Box>
   );
 }

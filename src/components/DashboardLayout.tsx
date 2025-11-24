@@ -24,24 +24,20 @@ import {
   Menu,
   MenuItem,
   Badge,
-  Chip,
-  useTheme,
-  useMediaQuery,
   Paper,
   Button,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
-  Assessment as AssessmentIcon,
-  DataUsage as DataUsageIcon,
   Analytics as AnalyticsIcon,
   Logout as LogoutIcon,
   Notifications as NotificationsIcon,
   AccountCircle as AccountCircleIcon,
   ChevronRight as ChevronRightIcon,
   Security as SecurityIcon,
-  Psychology as PsychologyIcon,
   Inbox as InboxIcon,
   CheckCircle as VerifiedIcon,
   DarkMode as DarkModeIcon,
@@ -50,6 +46,7 @@ import {
   Timeline as TimelineIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
+import CommandPalette from '@/components/CommandPalette';
 
 const drawerWidth = 260;
 
@@ -400,6 +397,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </Box>
       </Main>
+      <CommandPalette />
     </Box>
   );
 }

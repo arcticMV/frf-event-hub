@@ -18,11 +18,11 @@ const StyledCard = styled(Card, {
   overflow: 'visible',
   ...(glassmorphism && {
     background: theme.palette.mode === 'dark'
-      ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.7)} 0%, ${alpha(theme.palette.background.paper, 0.5)} 100%)`
+      ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.6)} 0%, ${alpha(theme.palette.background.paper, 0.4)} 100%)`
       : `linear-gradient(135deg, ${alpha('#ffffff', 0.9)} 0%, ${alpha('#ffffff', 0.7)} 100%)`,
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
-    border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+    border: `1px solid ${theme.palette.mode === 'dark' ? alpha('#ffffff', 0.1) : alpha(theme.palette.divider, 0.2)}`,
     boxShadow: theme.palette.mode === 'dark'
       ? '0 8px 32px rgba(0, 0, 0, 0.4)'
       : '0 8px 32px rgba(31, 38, 135, 0.15)',
@@ -35,7 +35,7 @@ const StyledCard = styled(Card, {
       bottom: 0,
       borderRadius: 'inherit',
       background: theme.palette.mode === 'dark'
-        ? 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%)'
+        ? 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 100%)'
         : 'linear-gradient(135deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 100%)',
       pointerEvents: 'none',
     },
@@ -46,8 +46,9 @@ const StyledCard = styled(Card, {
     '&:hover': {
       transform: 'translateY(-8px) scale(1.02)',
       boxShadow: theme.palette.mode === 'dark'
-        ? '0 20px 40px rgba(0, 0, 0, 0.5)'
+        ? '0 20px 40px rgba(0, 0, 0, 0.6)'
         : '0 20px 40px rgba(31, 38, 135, 0.25)',
+      border: `1px solid ${theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.divider, 0.2)}`,
     },
   }),
 }));
