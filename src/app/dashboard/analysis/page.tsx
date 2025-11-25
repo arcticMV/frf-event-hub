@@ -382,7 +382,7 @@ export default function EnhancedAnalysisQueuePage() {
     },
     {
       field: 'severity',
-      headerName: 'Risk Score',
+      headerName: 'Severity Score',
       width: 120,
       valueGetter: (value, row) => row.aiAnalysis?.impactAssessment?.severity || 0,
       renderCell: (params: GridRenderCellParams) => {
@@ -717,7 +717,7 @@ export default function EnhancedAnalysisQueuePage() {
               {tabValue === 1 && selectedEvent.aiAnalysis && (
                 <Stack spacing={2}>
                   <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Risk Score</Typography>
+                    <Typography variant="subtitle2" color="text.secondary">Severity Score</Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Rating value={selectedEvent.aiAnalysis.impactAssessment?.severity || 0} max={10} readOnly size="large" />
                       <Typography variant="h6">{selectedEvent.aiAnalysis.impactAssessment?.severity || 0}/10</Typography>
@@ -910,12 +910,12 @@ export default function EnhancedAnalysisQueuePage() {
             <Box sx={{ mt: 2 }}>
               <Accordion defaultExpanded>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography fontWeight="bold">Risk Assessment</Typography>
+                  <Typography fontWeight="bold">Severity Assessment</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Stack spacing={2}>
                     <Box>
-                      <Typography gutterBottom>Risk Score (0-10)</Typography>
+                      <Typography gutterBottom>Severity Score (0-10)</Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Rating
                           value={editedAnalysis.impactAssessment?.severity || 0}
