@@ -14,10 +14,7 @@ import {
   TextField,
   Stack,
   Alert,
-  Card,
   CardContent,
-  Fade,
-  Grow,
   Divider,
   LinearProgress,
   IconButton,
@@ -27,10 +24,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Switch,
   FormControlLabel,
   Rating,
@@ -59,7 +52,6 @@ import {
   LocationOn as LocationIcon,
   Timeline as TimelineIcon,
   Security as SecurityIcon,
-  Description as DescriptionIcon,
   Add as AddIcon,
   Remove as RemoveIcon,
   Search as SearchIcon,
@@ -77,7 +69,6 @@ import {
   Timestamp,
   onSnapshot,
   setDoc,
-  getDoc,
 } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -85,14 +76,51 @@ import GlassCard from '@/components/GlassCard';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
 import QuickActions from '@/components/QuickActions';
-import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 import LiquidGlassButton from '@/components/LiquidGlassButton';
 import { motion } from 'framer-motion';
 
 // New usability features
 import ValidationMessage from '@/components/ValidationMessage';
 import { useDialogShortcuts, useGlobalShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { validateField, VALIDATION_RULES, ANALYSIS_VALIDATORS } from '@/lib/validators';
+import { validateField, ANALYSIS_VALIDATORS } from '@/lib/validators';
+
+interface AIAnalysis {
+  processedAt?: Timestamp;
+  riskClassification?: {
+    confidence?: number;
+    primary?: string;
+    secondary?: string[];
+  };
+  advisory?: {
+    keyTakeaways?: string[];
+    recommendations?: string[];
+    relatedRisks?: string[];
+  };
+  geocoding?: {
+    coordinates?: {
+      lat?: number;
+      lng?: number;
+      formattedAddress?: string;
+    };
+    affectedRegions?: string[];
+    confidence?: number;
+    geocodingService?: string;
+  };
+  impactAssessment?: {
+    severity?: number;
+    radiusKm?: number;
+    radiusCategory?: string;
+    estimatedAffectedPopulation?: number;
+    sectors?: string[];
+  };
+  temporal?: {
+    eventStart?: string;
+    expectedDuration?: string;
+    isOngoing?: boolean;
+  };
+  model?: string;
+  modelRegion?: string;
+}
 
 interface AnalysisEvent {
   id: string;
@@ -127,43 +155,7 @@ interface AnalysisEvent {
     analysisVersion: number;
     addedAt?: Timestamp;
   };
-  aiAnalysis?: {
-    processedAt?: Timestamp;
-    riskClassification?: {
-      confidence?: number;
-      primary?: string;
-      secondary?: string[];
-    };
-    advisory?: {
-      keyTakeaways?: string[];
-      recommendations?: string[];
-      relatedRisks?: string[];
-    };
-    geocoding?: {
-      coordinates?: {
-        lat?: number;
-        lng?: number;
-        formattedAddress?: string;
-      };
-      affectedRegions?: string[];
-      confidence?: number;
-      geocodingService?: string;
-    };
-    impactAssessment?: {
-      severity?: number;
-      radiusKm?: number;
-      radiusCategory?: string;
-      estimatedAffectedPopulation?: number;
-      sectors?: string[];
-    };
-    temporal?: {
-      eventStart?: string;
-      expectedDuration?: string;
-      isOngoing?: boolean;
-    };
-    model?: string;
-    modelRegion?: string;
-  };
+  aiAnalysis?: AIAnalysis;
   verificationStatus?: string;
   verifiedBy?: string;
   verifiedAt?: Timestamp;
@@ -179,7 +171,7 @@ export default function EnhancedAnalysisQueuePage() {
   const [editDialog, setEditDialog] = useState(false);
   const [verifyDialog, setVerifyDialog] = useState(false);
   const [verificationNotes, setVerificationNotes] = useState('');
-  const [editedAnalysis, setEditedAnalysis] = useState<any>(null);
+  const [editedAnalysis, setEditedAnalysis] = useState<AIAnalysis | null>(null);
   const [tabValue, setTabValue] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -329,9 +321,9 @@ export default function EnhancedAnalysisQueuePage() {
     return hasRiskScore && hasConfidence;
   };
 
-  const formatDate = (timestamp: any) => {
+  const formatDate = (timestamp: Timestamp | Date | string | null | undefined) => {
     if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -383,7 +375,7 @@ export default function EnhancedAnalysisQueuePage() {
     },
     {
       field: 'severity',
-      headerName: 'Risk Score',
+      headerName: 'Severity Score',
       width: 120,
       valueGetter: (value, row) => row.aiAnalysis?.impactAssessment?.severity || 0,
       renderCell: (params: GridRenderCellParams) => {
@@ -617,7 +609,7 @@ export default function EnhancedAnalysisQueuePage() {
                 <Typography variant="h4" fontWeight="bold">
                   {events.filter(e => (e.aiAnalysis?.impactAssessment?.severity || 0) >= 8).length}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">High Risk</Typography>
+                <Typography variant="body2" color="text.secondary">High Severity</Typography>
               </Box>
             </Box>
           </CardContent>
@@ -661,7 +653,7 @@ export default function EnhancedAnalysisQueuePage() {
         <DialogContent>
           {selectedEvent && (
             <Box>
-              <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 2 }}>
+              <Tabs value={tabValue} onChange={(_e, v) => setTabValue(v)} sx={{ mb: 2 }}>
                 <Tab label="Event Info" />
                 <Tab label="AI Analysis" />
                 <Tab label="Advisory" />
@@ -713,7 +705,7 @@ export default function EnhancedAnalysisQueuePage() {
               {tabValue === 1 && selectedEvent.aiAnalysis && (
                 <Stack spacing={2}>
                   <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Risk Score</Typography>
+                    <Typography variant="subtitle2" color="text.secondary">Severity Score</Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Rating value={selectedEvent.aiAnalysis.impactAssessment?.severity || 0} max={10} readOnly size="large" />
                       <Typography variant="h6">{selectedEvent.aiAnalysis.impactAssessment?.severity || 0}/10</Typography>
@@ -874,7 +866,7 @@ export default function EnhancedAnalysisQueuePage() {
           <Tooltip
             title={
               selectedEvent && !isAnalysisComplete(selectedEvent)
-                ? "Please wait for AI analysis to complete (risk score and confidence required)"
+                ? "Please wait for AI analysis to complete (severity score and confidence required)"
                 : ""
             }
           >
@@ -906,21 +898,21 @@ export default function EnhancedAnalysisQueuePage() {
             <Box sx={{ mt: 2 }}>
               <Accordion defaultExpanded>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography fontWeight="bold">Risk Assessment</Typography>
+                  <Typography fontWeight="bold">Severity Assessment</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Stack spacing={2}>
                     <Box>
-                      <Typography gutterBottom>Risk Score (0-10)</Typography>
+                      <Typography gutterBottom>Severity Score (0-10)</Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Rating
                           value={editedAnalysis.impactAssessment?.severity || 0}
                           max={10}
-                          onChange={(e, value) => setEditedAnalysis({
+                          onChange={(_e, value) => setEditedAnalysis({
                             ...editedAnalysis,
                             impactAssessment: {
                               ...editedAnalysis.impactAssessment,
-                              severity: value
+                              severity: value ?? undefined
                             }
                           })}
                         />
@@ -1003,7 +995,7 @@ export default function EnhancedAnalysisQueuePage() {
                           />
                           <IconButton
                             onClick={() => {
-                              const newTakeaways = editedAnalysis.advisory?.keyTakeaways?.filter((_: any, i: number) => i !== idx);
+                              const newTakeaways = editedAnalysis.advisory?.keyTakeaways?.filter((_: string, i: number) => i !== idx);
                               setEditedAnalysis({
                                 ...editedAnalysis,
                                 advisory: { ...editedAnalysis.advisory, keyTakeaways: newTakeaways }
@@ -1048,7 +1040,7 @@ export default function EnhancedAnalysisQueuePage() {
                           />
                           <IconButton
                             onClick={() => {
-                              const newRecs = editedAnalysis.advisory?.recommendations?.filter((_: any, i: number) => i !== idx);
+                              const newRecs = editedAnalysis.advisory?.recommendations?.filter((_: string, i: number) => i !== idx);
                               setEditedAnalysis({
                                 ...editedAnalysis,
                                 advisory: { ...editedAnalysis.advisory, recommendations: newRecs }
@@ -1195,7 +1187,7 @@ export default function EnhancedAnalysisQueuePage() {
           {selectedEvent && !isAnalysisComplete(selectedEvent) ? (
             <Alert severity="warning" sx={{ mb: 2 }}>
               <strong>AI Analysis Incomplete!</strong><br />
-              This event is missing risk score or confidence values. Please wait for AI analysis to complete before verifying to prevent data loss.
+              This event is missing severity score or confidence values. Please wait for AI analysis to complete before verifying to prevent data loss.
             </Alert>
           ) : (
             <Alert severity="info" sx={{ mb: 2 }}>
