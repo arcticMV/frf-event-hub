@@ -182,9 +182,12 @@ export function findSimilarEvents(
     }
 
     // Calculate final score (0-100)
-    const finalScore = weights > 0 ? (totalScore / weights) * 100 : 0;
+    // Use fixed total weight (100) to prevent single-match high scores
+    // Title match is required - without it, don't consider as duplicate
+    const hasTitleMatch = matchReasons.some(r => r.includes('title match'));
+    const finalScore = hasTitleMatch ? (totalScore / 100) * 100 : 0;
 
-    if (finalScore >= minimumScore && matchReasons.length > 0) {
+    if (finalScore >= minimumScore && matchReasons.length > 0 && hasTitleMatch) {
       matches.push({
         id: existing.id || existing.eventId,
         score: Math.round(finalScore),
