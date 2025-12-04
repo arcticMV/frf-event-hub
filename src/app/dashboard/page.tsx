@@ -2,44 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Card,
   CardContent,
   Typography,
   Box,
   Paper,
   Chip,
-  CircularProgress,
-  IconButton,
   Stack,
   Divider,
   Button,
-  Fade,
-  Grow,
   Zoom,
 } from '@mui/material';
 import {
   Inbox as InboxIcon,
   Analytics as AnalyticsIcon,
   CheckCircle as VerifiedIcon,
-  Warning as WarningIcon,
   Refresh as RefreshIcon,
   ArrowForward as ArrowIcon,
-  TrendingUp as TrendingUpIcon,
-  Schedule as ScheduleIcon,
-  Assessment as AssessmentIcon,
-  Add as AddIcon,
-  Search as SearchIcon,
-  Download as DownloadIcon,
 } from '@mui/icons-material';
+import LiquidGlassButton from '@/components/LiquidGlassButton';
 import { db } from '@/lib/firebase/client';
 import {
   collection,
   query,
-  where,
   getDocs,
   orderBy,
   limit,
-  Timestamp,
   onSnapshot,
 } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
@@ -47,7 +34,7 @@ import toast from 'react-hot-toast';
 import GlassCard from '@/components/GlassCard';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
-import { AnimatedLineChart, AnimatedAreaChart, AnimatedBarChart, AnimatedPieChart } from '@/components/Charts';
+import { AnimatedAreaChart, AnimatedBarChart, AnimatedPieChart } from '@/components/Charts';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
 import { motion } from 'framer-motion';
 
@@ -463,19 +450,15 @@ export default function DashboardPage() {
               Real-time monitoring of event collection, analysis, and verification
             </Typography>
           </Box>
-          <Button
-            variant="contained"
+          <LiquidGlassButton
+            liquidVariant="primary"
             startIcon={<RefreshIcon />}
             onClick={fetchStats}
-            sx={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
-              },
-            }}
+            specularHighlights={true}
+            glassIntensity="medium"
           >
             Refresh
-          </Button>
+          </LiquidGlassButton>
         </Box>
       </motion.div>
 
@@ -515,15 +498,15 @@ export default function DashboardPage() {
                   <Chip label={stats.staging.critical} size="small" color="error" />
                 </Box>
               </Stack>
-              <Button
+              <LiquidGlassButton
                 fullWidth
-                variant="text"
+                liquidVariant="neutral"
                 endIcon={<ArrowIcon />}
-                sx={{ mt: 2 }}
                 onClick={() => router.push('/dashboard/staging')}
+                sx={{ mt: 2 }}
               >
                 View Staging
-              </Button>
+              </LiquidGlassButton>
             </CardContent>
           </GlassCard>
         </Zoom>
@@ -566,15 +549,15 @@ export default function DashboardPage() {
                   />
                 </Box>
               </Stack>
-              <Button
+              <LiquidGlassButton
                 fullWidth
-                variant="text"
+                liquidVariant="neutral"
                 endIcon={<ArrowIcon />}
-                sx={{ mt: 2 }}
                 onClick={() => router.push('/dashboard/analysis')}
+                sx={{ mt: 2 }}
               >
                 View Analysis
-              </Button>
+              </LiquidGlassButton>
             </CardContent>
           </GlassCard>
         </Zoom>
@@ -613,15 +596,15 @@ export default function DashboardPage() {
                   <Chip label={stats.verified.high} size="small" color="warning" />
                 </Box>
               </Stack>
-              <Button
+              <LiquidGlassButton
                 fullWidth
-                variant="text"
+                liquidVariant="neutral"
                 endIcon={<ArrowIcon />}
-                sx={{ mt: 2 }}
                 onClick={() => router.push('/dashboard/verified')}
+                sx={{ mt: 2 }}
               >
                 View Verified
-              </Button>
+              </LiquidGlassButton>
             </CardContent>
           </GlassCard>
         </Zoom>
@@ -688,6 +671,7 @@ export default function DashboardPage() {
                   title=""
                   height={220}
                   outerRadius={70}
+                  disableWrapper={true}
                 />
               </Box>
             </Paper>
@@ -753,8 +737,8 @@ export default function DashboardPage() {
                         height: 40,
                         borderRadius: 1,
                         background: event.event?.severity === 'critical' ? '#EF4444' :
-                                   event.event?.severity === 'high' ? '#F59E0B' :
-                                   event.event?.severity === 'medium' ? '#3B82F6' : '#10B981',
+                          event.event?.severity === 'high' ? '#F59E0B' :
+                            event.event?.severity === 'medium' ? '#3B82F6' : '#10B981',
                       }}
                     />
                     <Box>
@@ -778,8 +762,6 @@ export default function DashboardPage() {
           </Stack>
         }
       />
-
-      {/* Quick Actions SpeedDial */}
     </Box>
   );
 }

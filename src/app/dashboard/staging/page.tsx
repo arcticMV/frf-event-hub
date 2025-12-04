@@ -68,6 +68,7 @@ import GlassCard from '@/components/GlassCard';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import EmptyState from '@/components/EmptyState';
 import ProgressiveDisclosure from '@/components/ProgressiveDisclosure';
+import LiquidGlassButton from '@/components/LiquidGlassButton';
 
 // New usability features
 import SmartDateInput from '@/components/SmartDateInput';
@@ -575,7 +576,7 @@ export default function EnhancedStagingEventsPage() {
       width: 120,
       renderCell: (params: GridRenderCellParams) => {
         const color = params.value === 'pending' ? 'warning' :
-                     params.value === 'approved' ? 'success' : 'error';
+          params.value === 'approved' ? 'success' : 'error';
         return <Chip label={params.value} size="small" color={color} />;
       }
     },
@@ -653,7 +654,6 @@ export default function EnhancedStagingEventsPage() {
     }
   ];
 
-
   if (loading) {
     return <LoadingSkeleton variant="table" rows={10} />;
   }
@@ -681,12 +681,19 @@ export default function EnhancedStagingEventsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'flex-start', md: 'center' },
+          gap: 2,
+          mb: 3
+        }}>
           <Box>
             <Typography variant="h4" fontWeight="bold">
               Staging Events Management
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
               <Typography variant="body1" color="text.secondary">
                 Review, edit, and approve incoming events
               </Typography>
@@ -699,12 +706,13 @@ export default function EnhancedStagingEventsPage() {
               )}
             </Box>
           </Box>
-          <Stack direction="row" spacing={2}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ width: { xs: '100%', sm: 'auto' } }}>
             {selectedRowIds.length > 0 && (
               <Fade in>
                 <Button
                   variant="contained"
                   color="error"
+                  fullWidth
                   startIcon={<DeleteIcon />}
                   onClick={() => setDeleteConfirmDialog(true)}
                   sx={{
@@ -714,36 +722,28 @@ export default function EnhancedStagingEventsPage() {
                     },
                   }}
                 >
-                  Delete Selected ({selectedRowIds.length})
+                  Delete ({selectedRowIds.length})
                 </Button>
               </Fade>
             )}
-            <Button
-              variant="contained"
+            <LiquidGlassButton
+              liquidVariant="success"
+              fullWidth
               startIcon={<AddIcon />}
               onClick={() => setCreateDialog(true)}
-              sx={{
-                background: 'linear-gradient(135deg, #66BB6A 0%, #4CAF50 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%)',
-                },
-              }}
+              specularHighlights={true}
             >
               New Event
-            </Button>
-            <Button
-              variant="contained"
+            </LiquidGlassButton>
+            <LiquidGlassButton
+              liquidVariant="warning"
+              fullWidth
               startIcon={<RefreshIcon />}
               onClick={fetchEvents}
-              sx={{
-                background: 'linear-gradient(135deg, #FFA726 0%, #FB8C00 100%)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #FB8C00 0%, #FFA726 100%)',
-                },
-              }}
+              specularHighlights={true}
             >
               Refresh
-            </Button>
+            </LiquidGlassButton>
           </Stack>
         </Box>
       </motion.div>
@@ -769,8 +769,8 @@ export default function EnhancedStagingEventsPage() {
           />
         }
         advancedContent={
-          <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-            <FormControl sx={{ minWidth: 150 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
+            <FormControl sx={{ minWidth: 150, width: { xs: '100%', sm: 'auto' } }}>
               <InputLabel>Severity</InputLabel>
               <Select
                 value={filterSeverity}
@@ -784,7 +784,7 @@ export default function EnhancedStagingEventsPage() {
                 ))}
               </Select>
             </FormControl>
-            <FormControl sx={{ minWidth: 150 }}>
+            <FormControl sx={{ minWidth: 150, width: { xs: '100%', sm: 'auto' } }}>
               <InputLabel>Status</InputLabel>
               <Select
                 value={filterStatus}
@@ -813,7 +813,7 @@ export default function EnhancedStagingEventsPage() {
       />
 
       {/* Statistics Cards */}
-      <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
         <Zoom in timeout={300}>
           <GlassCard sx={{ flex: 1 }}>
             <Box sx={{ p: 2 }}>
@@ -982,7 +982,7 @@ export default function EnhancedStagingEventsPage() {
                 <Typography variant="subtitle2" color="text.secondary">Location</Typography>
                 <Typography variant="body1">
                   {selectedEvent.event.location.text.eng}
-                  {selectedEvent.event.location.country?.eng && `, ${selectedEvent.event.location.country.eng}`}
+                  {selectedEvent.event.location.country?.eng && `, ${selectedEvent.event.location.country.eng} `}
                 </Typography>
               </Box>
               <Box>
@@ -1351,7 +1351,6 @@ export default function EnhancedStagingEventsPage() {
           </Button>
         </DialogActions>
       </Dialog>
-
-    </Box>
+    </Box >
   );
 }

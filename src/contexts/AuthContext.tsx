@@ -37,6 +37,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const router = useRouter();
 
   useEffect(() => {
+    if (!auth) {
+      console.warn('Auth is not initialized. Check Firebase configuration.');
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setLoading(false);
@@ -61,6 +67,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    if (!auth) {
+      toast.error('Authentication service is not available');
+      return;
+    }
     try {
       await signInWithEmailAndPassword(auth, email, password);
       toast.success('Successfully logged in!');
@@ -81,6 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    if (!auth) return;
     try {
       await signOut(auth);
       toast.success('Logged out successfully');
@@ -93,6 +104,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetPassword = async (email: string) => {
+    if (!auth) {
+      toast.error('Authentication service is not available');
+      return;
+    }
     try {
       await sendPasswordResetEmail(auth, email);
       toast.success('Password reset email sent! Check your inbox.');
